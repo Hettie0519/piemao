@@ -26,20 +26,17 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: piemao/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./piemao
         run: npm ci
 
       - name: Build
-        working-directory: ./piemao
         run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./piemao/dist
+          path: ./dist
 
   deploy:
     environment:
