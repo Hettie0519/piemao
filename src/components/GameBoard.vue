@@ -230,33 +230,40 @@ function passTurn() {
 .game-container {
   background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
   overflow: hidden;
+  width: 100vw;
+  height: 100vh;
 }
 
 .game-layout {
   display: flex;
   flex-direction: column;
-  padding: 5px;
-  gap: 5px;
+  padding: 1vh;
+  gap: 1vh;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* 顶部玩家 */
 .top-players {
   display: flex;
   justify-content: center;
-  gap: 10px;
-  padding: 5px;
+  gap: 2vw;
+  padding: 1vh;
+  height: 15vh;
 }
 
 .player-card {
   background: rgba(0, 0, 0, 0.6);
-  border-radius: 10px;
-  padding: 8px 12px;
+  border-radius: 1.5vh;
+  padding: 1.5vh 2vw;
   color: white;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 100px;
-  border: 2px solid transparent;
+  gap: 1vw;
+  min-width: 18vw;
+  max-width: 25vw;
+  border: 0.3vh solid transparent;
   transition: all 0.3s;
 }
 
@@ -282,49 +289,53 @@ function passTurn() {
 }
 
 .host-badge {
-  font-size: 1rem;
+  font-size: 3vmin;
 }
 
 .player-name {
   font-weight: bold;
-  font-size: 0.85rem;
+  font-size: 2.5vmin;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-cards {
   background: rgba(255, 255, 255, 0.2);
-  padding: 3px 8px;
-  border-radius: 15px;
-  font-size: 0.8rem;
+  padding: 0.8vh 1.5vw;
+  border-radius: 2vmin;
+  font-size: 2vmin;
+  white-space: nowrap;
 }
 
 /* 游戏桌面 */
 .game-table {
   flex: 1;
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 15px;
+  border-radius: 2vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px;
+  padding: 2vh;
   position: relative;
-  min-height: 120px;
+  min-height: 25vh;
 }
 
 .table-info {
   position: absolute;
-  top: 8px;
-  right: 10px;
+  top: 1.5vh;
+  right: 2vw;
   display: flex;
-  gap: 10px;
+  gap: 1.5vw;
 }
 
 .info-item {
   background: rgba(0, 0, 0, 0.5);
-  padding: 4px 8px;
-  border-radius: 12px;
+  padding: 0.8vh 1.5vw;
+  border-radius: 1.5vmin;
   color: white;
-  font-size: 0.75rem;
+  font-size: 1.8vmin;
 }
 
 .last-played {
@@ -333,28 +344,29 @@ function passTurn() {
 
 .last-label {
   color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 10px;
-  font-size: 0.85rem;
+  margin-bottom: 2vh;
+  font-size: 2vmin;
 }
 
 .played-cards {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 1vw;
+  margin-bottom: 2vh;
   flex-wrap: wrap;
 }
 
 .card-display {
   background: white;
   color: black;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 1.5vh 2vw;
+  border-radius: 1vh;
   font-weight: bold;
-  font-size: 1rem;
-  min-width: 40px;
+  font-size: 2.5vmin;
+  min-width: 6vw;
+  max-width: 8vw;
   text-align: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0.3vh 0.8vh rgba(0, 0, 0, 0.3);
 }
 
 .card-display.hearts,
@@ -369,54 +381,56 @@ function passTurn() {
 
 .last-player {
   color: rgba(255, 255, 255, 0.7);
-  font-size: 0.8rem;
+  font-size: 2vmin;
   margin: 0;
 }
 
 .waiting-text {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 0.95rem;
+  font-size: 2.5vmin;
 }
 
 /* 底部区域 */
 .bottom-section {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 1vh;
+  max-height: 50vh;
 }
 
 .my-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 10px;
+  padding: 1vh 2vw;
+  height: 10vh;
 }
 
 .my-avatar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 1vw;
   color: white;
 }
 
 .my-name {
   font-weight: bold;
-  font-size: 0.95rem;
+  font-size: 2.5vmin;
 }
 
 .my-cards {
   background: rgba(255, 255, 255, 0.2);
-  padding: 4px 10px;
-  border-radius: 15px;
-  font-size: 0.85rem;
+  padding: 1vh 2vw;
+  border-radius: 2vmin;
+  font-size: 2vmin;
 }
 
 .turn-indicator {
   background: rgba(0, 0, 0, 0.5);
-  padding: 4px 12px;
-  border-radius: 15px;
+  padding: 1vh 2vw;
+  border-radius: 2vmin;
   color: rgba(255, 255, 255, 0.7);
-  font-size: 0.8rem;
+  font-size: 2vmin;
 }
 
 .turn-indicator.active {
@@ -439,16 +453,17 @@ function passTurn() {
 .action-buttons {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  padding: 0 10px;
+  gap: 1.5vw;
+  padding: 0 2vw;
+  height: 8vh;
 }
 
 .btn-action {
-  padding: 8px 20px;
+  padding: 1.5vh 3vw;
   border: none;
-  border-radius: 20px;
+  border-radius: 3vmin;
   font-weight: bold;
-  font-size: 0.9rem;
+  font-size: 2vmin;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -489,25 +504,37 @@ function passTurn() {
 /* 我的手牌 */
 .my-hand {
   background: rgba(0, 0, 0, 0.5);
-  border-radius: 12px 12px 0 0;
-  padding: 8px 5px;
-  min-height: 95px;
+  border-radius: 2vh 2vh 0 0;
+  padding: 1.5vh 1vw;
+  height: auto;
+  max-height: 35vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .hand-cards {
   display: flex;
   justify-content: center;
-  gap: 4px;
+  gap: 0.5vw;
   flex-wrap: wrap;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  padding-right: 0.5vw;
 }
 
 /* 手牌样式 */
 .playing-card {
-  width: 45px;
-  height: 68px;
+  width: 7vw;
+  height: 10vh;
+  max-width: 55px;
+  max-height: 80px;
+  min-width: 35px;
+  min-height: 50px;
   background: white;
-  border: 2px solid #333;
-  border-radius: 6px;
+  border: 0.3vh solid #333;
+  border-radius: 1vh;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -516,24 +543,24 @@ function passTurn() {
   transition: all 0.2s;
   font-weight: bold;
   flex-shrink: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0.3vh 0.6vh rgba(0, 0, 0, 0.3);
 }
 
 .playing-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2vh);
+  box-shadow: 0 0.6vh 1.2vh rgba(0, 0, 0, 0.4);
 }
 
 .playing-card.selected {
-  transform: translateY(-12px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+  transform: translateY(-3vh);
+  box-shadow: 0 1vh 2vh rgba(0, 0, 0, 0.5);
   border-color: #ffc107;
-  border-width: 2px;
+  border-width: 0.4vh;
 }
 
 .playing-card.red-heart-3 {
   border-color: #ffc107;
-  border-width: 2px;
+  border-width: 0.4vh;
 }
 
 .playing-card.hearts,
@@ -550,16 +577,16 @@ function passTurn() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 0.5vh;
 }
 
 .card-rank {
-  font-size: 1rem;
+  font-size: 2.5vmin;
   font-weight: bold;
 }
 
 .card-suit {
-  font-size: 1.2rem;
+  font-size: 3vmin;
 }
 
 /* 横屏提示 */
@@ -610,87 +637,40 @@ function passTurn() {
   pointer-events: none;
 }
 
-/* 响应式调整 */
-@media (max-width: 768px) {
-  .top-players {
-    gap: 8px;
-    padding: 5px;
-  }
-
-  .player-card {
-    min-width: 90px;
-    padding: 6px 10px;
-  }
-
+/* 横竖屏适配 */
+@media (orientation: portrait) {
   .playing-card {
-    width: 40px;
-    height: 62px;
+    width: 12vw;
+    height: 8vh;
   }
-
-  .btn-action {
-    padding: 6px 16px;
-    font-size: 0.85rem;
-  }
-
+  
   .card-display {
-    padding: 5px 8px;
-    font-size: 0.9rem;
-    min-width: 36px;
-  }
-
-  .my-hand {
-    padding: 6px 4px;
-    min-height: 85px;
-  }
-
-  .game-table {
-    padding: 8px;
-    min-height: 100px;
+    font-size: 3vmin;
+    padding: 2vh 3vw;
   }
 }
 
-/* 超小屏幕适配 */
-@media (max-height: 400px) {
-  .game-layout {
-    padding: 3px;
-    gap: 3px;
-  }
+/* 隐藏滚动条但保留功能 */
+.hand-cards::-webkit-scrollbar {
+  width: 0.5vh;
+}
 
-  .top-players {
-    gap: 6px;
-    padding: 3px;
-  }
+.hand-cards::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-  .player-card {
-    min-width: 80px;
-    padding: 5px 8px;
-  }
+.hand-cards::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 0.5vh;
+}
 
-  .playing-card {
-    width: 36px;
-    height: 56px;
-  }
+.hand-cards::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
 
-  .card-rank {
-    font-size: 0.9rem;
-  }
-
-  .card-suit {
-    font-size: 1rem;
-  }
-
-  .my-hand {
-    padding: 5px 3px;
-    min-height: 75px;
-  }
-
-  .action-buttons {
-    gap: 6px;
-  }
-
-  .btn-action {
-    padding: 5px 14px;
-    font-size: 0.8rem;
-  }
+/* 确保没有其他滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 </style>

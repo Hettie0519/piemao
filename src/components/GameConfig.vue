@@ -63,7 +63,7 @@ function startGame() {
 </script>
 
 <template>
-  <div class="container py-5 vh-100 game-container">
+  <div class="game-container vh-100 d-flex flex-column">
     <!-- 横屏提示 -->
     <div v-if="isPortrait" class="rotate-prompt">
       <div class="rotate-icon">📱</div>
@@ -71,131 +71,262 @@ function startGame() {
       <p>为了更好的游戏体验，请横屏使用</p>
     </div>
 
-    <div class="row justify-content-center" :class="{ 'blur-content': isPortrait }">
-      <div class="col-md-8">
-        <div class="card bg-secondary text-white mb-4">
-          <div class="card-header">
-            <h2 class="mb-0">游戏设置</h2>
-          </div>
-          <div class="card-body">
-            <!-- 房间信息 -->
-            <div class="mb-4">
-              <h5>房间号</h5>
-              <div class="input-group">
-                <input
-                  type="text"
-                  class="form-control"
-                  :value="roomId"
-                  readonly
-                  style="font-family: monospace; font-size: 0.9rem;"
-                />
-                <button class="btn btn-primary" @click="copyRoomId">
-                  {{ copied ? '已复制!' : '复制' }}
-                </button>
-              </div>
-              <small class="text-muted mt-2 d-block">
-                ⚠️ 请复制完整的房间号分享给朋友
-              </small>
-              <small class="text-muted d-block">
-                房间号格式：完整的 PeerJS ID（约36个字符）
-              </small>
-            </div>
-
-            <!-- 牌副数配置 -->
-            <div class="mb-4">
-              <h5>扑克牌副数</h5>
-              <div class="input-group mb-2">
-                <button
-                  class="btn btn-outline-light"
-                  @click="gameStore.config.deckCount = Math.max(1, gameStore.config.deckCount - 1)"
-                  :disabled="gameStore.config.deckCount <= 1"
-                >
-                  -
-                </button>
-                <input
-                  type="number"
-                  class="form-control text-center"
-                  v-model.number="gameStore.config.deckCount"
-                  min="1"
-                  max="10"
-                  readonly
-                />
-                <button
-                  class="btn btn-outline-light"
-                  @click="gameStore.config.deckCount = Math.min(10, gameStore.config.deckCount + 1)"
-                  :disabled="gameStore.config.deckCount >= 10"
-                >
-                  +
-                </button>
-              </div>
-              <small class="text-muted">
-                牌副数越多，炸弹和大牌出现概率越高，适合多人局
-              </small>
-            </div>
-
-            <!-- 玩家列表 -->
-            <div class="mb-4">
-              <h5>玩家列表 ({{ gameStore.players.length }}/10)</h5>
-              <ul class="list-group list-group-flush">
-                <li
-                  v-for="player in gameStore.players"
-                  :key="player.id"
-                  class="list-group-item list-group-item-action bg-dark text-white"
-                >
-                  <span v-if="player.isHost" class="badge bg-primary me-2">房主</span>
-                  {{ player.name }}
-                  <span v-if="player.id === gameStore.myPlayerId" class="badge bg-success ms-2">你</span>
-                </li>
-              </ul>
-            </div>
-
-            <!-- 开始按钮 -->
-            <button
-              class="btn btn-success w-100 py-3 fs-5"
-              @click="startGame"
-              :disabled="gameStore.players.length < 2"
-            >
-              开始游戏
-            </button>
-            <p v-if="gameStore.players.length < 2" class="text-center text-muted mt-2">
-              等待更多玩家加入...
-            </p>
-          </div>
+    <div class="config-content" :class="{ 'blur-content': isPortrait }">
+      <!-- 房间信息 -->
+      <div class="config-card">
+        <h2 class="card-title">房间号</h2>
+        <div class="room-id-group">
+          <input
+            type="text"
+            class="room-id-input"
+            :value="roomId"
+            readonly
+          />
+          <button class="btn-copy" @click="copyRoomId">
+            {{ copied ? '已复制!' : '复制' }}
+          </button>
         </div>
+        <small class="help-text">⚠️ 请复制完整的房间号分享给朋友</small>
+      </div>
 
-        <!-- 游戏规则说明 -->
-        <div class="card bg-dark text-white">
-          <div class="card-header">
-            <h5 class="mb-0">游戏规则</h5>
-          </div>
-          <div class="card-body">
-            <h6>牌型（从小到大）</h6>
-            <ul class="mb-3">
-              <li><strong>单牌/对子</strong> - 1张或2张同点牌</li>
-              <li><strong>顺子（链链）</strong> - ≥3张连续单牌</li>
-              <li><strong>姐妹对</strong> - ≥3组连续对子</li>
-              <li><strong>炸弹</strong> - 3张同点</li>
-              <li><strong>轰雷</strong> - 4张同点</li>
-              <li><strong>多张同点</strong> - ≥5张同点</li>
-            </ul>
-            <h6>起子特权</h6>
-            <ul class="mb-3">
-              <li><strong>对4</strong> 压制 <strong>炸弹（3张）</strong></li>
-              <li><strong>三张4</strong> 压制 <strong>轰雷（4张）</strong></li>
-              <li><strong>N张4</strong> 压制 <strong>N+1张</strong> 其他同点牌</li>
-            </ul>
-            <h6>大小顺序</h6>
-            <p class="mb-0">2 > A > K > Q > J > 10 > 9 > 8 > 7 > 6 > 5 > 4 > 3</p>
+      <!-- 牌副数配置 -->
+      <div class="config-card">
+        <h5 class="card-title">扑克牌副数</h5>
+        <div class="deck-control">
+          <button
+            class="btn-deck"
+            @click="gameStore.config.deckCount = Math.max(1, gameStore.config.deckCount - 1)"
+            :disabled="gameStore.config.deckCount <= 1"
+          >
+            -
+          </button>
+          <span class="deck-count">{{ gameStore.config.deckCount }}</span>
+          <button
+            class="btn-deck"
+            @click="gameStore.config.deckCount = Math.min(10, gameStore.config.deckCount + 1)"
+            :disabled="gameStore.config.deckCount >= 10"
+          >
+            +
+          </button>
+        </div>
+        <small class="help-text">牌副数越多，炸弹和大牌出现概率越高</small>
+      </div>
+
+      <!-- 玩家列表 -->
+      <div class="config-card">
+        <h5 class="card-title">玩家列表 ({{ gameStore.players.length }}/10)</h5>
+        <div class="players-list">
+          <div
+            v-for="player in gameStore.players"
+            :key="player.id"
+            class="player-item"
+          >
+            <span v-if="player.isHost" class="host-badge">👑</span>
+            {{ player.name }}
+            <span v-if="player.id === gameStore.myPlayerId" class="my-badge">你</span>
           </div>
         </div>
       </div>
+
+      <!-- 开始按钮 -->
+      <button
+        class="btn-start"
+        @click="startGame"
+        :disabled="gameStore.players.length < 2"
+      >
+        开始游戏
+      </button>
+      <p v-if="gameStore.players.length < 2" class="waiting-text">
+        等待更多玩家加入...
+      </p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.list-group-item {
-  border: 1px solid #444;
+/* 游戏容器 */
+.game-container {
+  background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.config-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
+  padding: 2vh;
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2vh;
+}
+
+.config-card {
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 2vh;
+  padding: 2.5vh 3vw;
+  color: white;
+}
+
+.card-title {
+  margin: 0 0 1.5vh 0;
+  font-size: 2.5vmin;
+}
+
+/* 房间号 */
+.room-id-group {
+  display: flex;
+  gap: 1vw;
+  margin-bottom: 1.5vh;
+}
+
+.room-id-input {
+  flex: 1;
+  padding: 1.5vh 2vw;
+  border: none;
+  border-radius: 1vh;
+  font-size: 1.8vmin;
+  font-family: monospace;
+  background: rgba(255, 255, 255, 0.9);
+  color: black;
+}
+
+.btn-copy {
+  padding: 1.5vh 3vw;
+  border: none;
+  border-radius: 1vh;
+  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);
+  color: black;
+  font-weight: bold;
+  font-size: 2vmin;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-copy:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0.4vh 1vh rgba(255, 193, 7, 0.5);
+}
+
+/* 牌副数控制 */
+.deck-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2vw;
+  margin-bottom: 1.5vh;
+}
+
+.btn-deck {
+  width: 6vh;
+  height: 6vh;
+  border: none;
+  border-radius: 1vh;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 3vmin;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-deck:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.btn-deck:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.deck-count {
+  font-size: 3vmin;
+  font-weight: bold;
+  min-width: 3vmin;
+  text-align: center;
+}
+
+/* 玩家列表 */
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+  margin-bottom: 1vh;
+}
+
+.player-item {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1.5vh 2vw;
+  border-radius: 1vh;
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+}
+
+.host-badge {
+  font-size: 2vmin;
+}
+
+.my-badge {
+  background: #28a745;
+  color: white;
+  padding: 0.5vh 1vw;
+  border-radius: 1vmin;
+  font-size: 1.5vmin;
+  margin-left: auto;
+}
+
+/* 开始按钮 */
+.btn-start {
+  width: 100%;
+  padding: 2.5vh;
+  border: none;
+  border-radius: 1.5vh;
+  background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+  color: white;
+  font-weight: bold;
+  font-size: 3vmin;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-start:hover:not(:disabled) {
+  transform: scale(1.02);
+  box-shadow: 0 0.6vh 1.5vh rgba(40, 167, 69, 0.5);
+}
+
+.btn-start:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.waiting-text {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  font-size: 2vmin;
+}
+
+.help-text {
+  display: block;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.8vmin;
 }
 
 /* 横屏提示 */
@@ -217,8 +348,8 @@ function startGame() {
 }
 
 .rotate-icon {
-  font-size: 80px;
-  margin-bottom: 20px;
+  font-size: 8vmin;
+  margin-bottom: 2vh;
   animation: rotate-phone 2s ease-in-out infinite;
 }
 
@@ -232,12 +363,12 @@ function startGame() {
 }
 
 .rotate-prompt h3 {
-  font-size: 1.5rem;
-  margin-bottom: 10px;
+  font-size: 3vmin;
+  margin-bottom: 1vh;
 }
 
 .rotate-prompt p {
-  font-size: 1rem;
+  font-size: 2vmin;
   color: #ccc;
 }
 
@@ -246,7 +377,30 @@ function startGame() {
   pointer-events: none;
 }
 
-.game-container {
-  overflow: hidden;
+/* 桌面端优化 */
+@media (min-width: 1024px) {
+  .config-content {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .config-card {
+    padding: 3vh 4vw;
+  }
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .config-content {
+    padding: 1.5vh;
+  }
+  
+  .config-card {
+    padding: 2vh 3vw;
+  }
+  
+  .card-title {
+    font-size: 3vmin;
+  }
 }
 </style>
