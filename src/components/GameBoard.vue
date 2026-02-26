@@ -6,22 +6,13 @@ import type { Card } from '../types/game';
 
 const gameStore = useGameStore();
 const selectedCards = ref<Card[]>([]);
-const isPortrait = ref(false);
-
-// 检测屏幕方向
-function checkOrientation() {
-  isPortrait.value = window.innerHeight > window.innerWidth;
-}
 
 onMounted(() => {
-  checkOrientation();
-  window.addEventListener('resize', checkOrientation);
-  window.addEventListener('orientationchange', checkOrientation);
+  // 空实现，不需要检测屏幕方向
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkOrientation);
-  window.removeEventListener('orientationchange', checkOrientation);
+  // 空实现
 });
 
 const sortedHand = computed(() => sortCards(gameStore.myHand));
@@ -122,18 +113,8 @@ function isLineEnd(index: number) {
 
 <template>
   <div class="game-container">
-    <!-- 横屏提示 -->
-    <div v-if="isPortrait" class="portrait-warning">
-      <div class="rotate-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z"/>
-        </svg>
-      </div>
-      <p>请旋转设备横屏游玩</p>
-    </div>
-
-    <!-- 横屏游戏界面 -->
-    <div v-else class="landscape-layout">
+    <!-- 游戏界面 -->
+    <div class="game-layout">
       <!-- 顶部信息栏 -->
       <div class="top-bar">
         <div class="game-title">
@@ -284,46 +265,8 @@ function isLineEnd(index: number) {
   bottom: 0;
 }
 
-/* 横屏提示 */
-.portrait-warning {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  color: white;
-}
-
-.rotate-icon {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 20px;
-  animation: rotate 2s ease-in-out infinite;
-}
-
-.rotate-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-@keyframes rotate {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-90deg); }
-}
-
-.portrait-warning p {
-  font-size: 18px;
-  margin: 0;
-}
-
-/* 横屏布局 */
-.landscape-layout {
+/* 游戏布局 */
+.game-layout {
   width: 100%;
   height: 100%;
   display: flex;

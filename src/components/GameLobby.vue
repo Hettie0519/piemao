@@ -5,22 +5,13 @@ import { useGameStore } from '../stores/gameStore';
 const gameStore = useGameStore();
 const hostIdInput = ref('');
 const joining = ref(false);
-const isPortrait = ref(false);
-
-// 检测屏幕方向
-function checkOrientation() {
-  isPortrait.value = window.innerHeight > window.innerWidth;
-}
 
 onMounted(() => {
-  checkOrientation();
-  window.addEventListener('resize', checkOrientation);
-  window.addEventListener('orientationchange', checkOrientation);
+  // 空实现，不需要检测屏幕方向
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkOrientation);
-  window.removeEventListener('orientationchange', checkOrientation);
+  // 空实现
 });
 
 async function joinRoom() {
@@ -45,14 +36,8 @@ async function joinRoom() {
 
 <template>
   <div class="game-container vh-100 d-flex flex-column">
-    <!-- 横屏提示 -->
-    <div v-if="isPortrait" class="rotate-prompt">
-      <div class="rotate-icon">📱</div>
-      <h3>请旋转设备</h3>
-      <p>为了更好的游戏体验，请横屏使用</p>
-    </div>
-
-    <div class="lobby-content" :class="{ 'blur-content': isPortrait }">
+<!-- 大厅界面 -->
+    <div class="lobby-content">
       <div class="lobby-card">
         <h2 class="lobby-title">加入房间</h2>
         <div class="input-group">
@@ -228,54 +213,6 @@ async function joinRoom() {
   color: rgba(255, 255, 255, 0.7);
   margin: 0;
   font-size: 2vmin;
-}
-
-/* 横屏提示 */
-.rotate-prompt {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  z-index: 9999;
-  text-align: center;
-  padding: 20px;
-}
-
-.rotate-icon {
-  font-size: 8vmin;
-  margin-bottom: 2vh;
-  animation: rotate-phone 2s ease-in-out infinite;
-}
-
-@keyframes rotate-phone {
-  0%, 100% {
-    transform: rotate(-90deg);
-  }
-  50% {
-    transform: rotate(-90deg) scale(1.1);
-  }
-}
-
-.rotate-prompt h3 {
-  font-size: 3vmin;
-  margin-bottom: 1vh;
-}
-
-.rotate-prompt p {
-  font-size: 2vmin;
-  color: #ccc;
-}
-
-.blur-content {
-  filter: blur(5px);
-  pointer-events: none;
 }
 
 /* 桌面端优化 */

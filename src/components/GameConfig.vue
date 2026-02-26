@@ -6,22 +6,14 @@ import { p2pManager } from '../utils/p2pManager';
 const gameStore = useGameStore();
 const copied = ref(false);
 const isInitializing = ref(true);
-const isPortrait = ref(false);
 
 const roomId = computed(() => {
   const id = p2pManager.getMyId();
   return id || '生成中...';
 });
 
-// 检测屏幕方向
-function checkOrientation() {
-  isPortrait.value = window.innerHeight > window.innerWidth;
-}
-
 onMounted(() => {
-  checkOrientation();
-  window.addEventListener('resize', checkOrientation);
-  window.addEventListener('orientationchange', checkOrientation);
+  // 空实现，不需要检测屏幕方向
   
   // 确保房间已创建
   if (!gameStore.isHost && gameStore.gameState === 'lobby') {
@@ -38,8 +30,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkOrientation);
-  window.removeEventListener('orientationchange', checkOrientation);
+  // 空实现
 });
 
 function copyRoomId() {
@@ -64,14 +55,8 @@ function startGame() {
 
 <template>
   <div class="game-container vh-100 d-flex flex-column">
-    <!-- 横屏提示 -->
-    <div v-if="isPortrait" class="rotate-prompt">
-      <div class="rotate-icon">📱</div>
-      <h3>请旋转设备</h3>
-      <p>为了更好的游戏体验，请横屏使用</p>
-    </div>
-
-    <div class="config-content" :class="{ 'blur-content': isPortrait }">
+<!-- 配置界面 -->
+    <div class="config-content">
       <!-- 房间信息 -->
       <div class="config-card">
         <h2 class="card-title">房间号</h2>
@@ -327,54 +312,6 @@ function startGame() {
   display: block;
   color: rgba(255, 255, 255, 0.7);
   font-size: 1.8vmin;
-}
-
-/* 横屏提示 */
-.rotate-prompt {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  z-index: 9999;
-  text-align: center;
-  padding: 20px;
-}
-
-.rotate-icon {
-  font-size: 8vmin;
-  margin-bottom: 2vh;
-  animation: rotate-phone 2s ease-in-out infinite;
-}
-
-@keyframes rotate-phone {
-  0%, 100% {
-    transform: rotate(-90deg);
-  }
-  50% {
-    transform: rotate(-90deg) scale(1.1);
-  }
-}
-
-.rotate-prompt h3 {
-  font-size: 3vmin;
-  margin-bottom: 1vh;
-}
-
-.rotate-prompt p {
-  font-size: 2vmin;
-  color: #ccc;
-}
-
-.blur-content {
-  filter: blur(5px);
-  pointer-events: none;
 }
 
 /* 桌面端优化 */
