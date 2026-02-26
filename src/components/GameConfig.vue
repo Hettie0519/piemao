@@ -1,18 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { p2pManager } from '../utils/p2pManager';
 
 const gameStore = useGameStore();
 const copied = ref(false);
 const isInitializing = ref(true);
+const isPortrait = ref(false);
 
 const roomId = computed(() => {
   const id = p2pManager.getMyId();
   return id || '生成中...';
 });
 
+// 检测屏幕方向
+function checkOrientation() {
+  isPortrait.value = window.innerHeight > window.innerWidth;
+}
+
 onMounted(() => {
+  checkOrientation();
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('orientationchange', checkOrientation);
+  
   // 确保房间已创建
   if (!gameStore.isHost && gameStore.gameState === 'lobby') {
     gameStore.createRoom();
@@ -25,6 +35,11 @@ onMounted(() => {
       clearInterval(checkInterval);
     }
   }, 100);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkOrientation);
+  window.removeEventListener('orientationchange', checkOrientation);
 });
 
 function copyRoomId() {
@@ -48,8 +63,15 @@ function startGame() {
 </script>
 
 <template>
-  <div class="container py-5">
-    <div class="row justify-content-center">
+  <div class="container py-5 vh-100 game-container">
+    <!-- 横屏提示 -->
+    <div v-if="isPortrait" class="rotate-prompt">
+      <div class="rotate-icon">📱</div>
+      <h3>请旋转设备</h3>
+      <p>为了更好的游戏体验，请横屏使用</p>
+    </div>
+
+    <div class="row justify-content-center" :class="{ 'blur-content': isPortrait }">
       <div class="col-md-8">
         <div class="card bg-secondary text-white mb-4">
           <div class="card-header">
@@ -174,5 +196,57 @@ function startGame() {
 <style scoped>
 .list-group-item {
   border: 1px solid #444;
+}
+
+/* 横屏提示 */
+.rotate-prompt {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  z-index: 9999;
+  text-align: center;
+  padding: 20px;
+}
+
+.rotate-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: rotate-phone 2s ease-in-out infinite;
+}
+
+@keyframes rotate-phone {
+  0%, 100% {
+    transform: rotate(-90deg);
+  }
+  50% {
+    transform: rotate(-90deg) scale(1.1);
+  }
+}
+
+.rotate-prompt h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.rotate-prompt p {
+  font-size: 1rem;
+  color: #ccc;
+}
+
+.blur-content {
+  filter: blur(5px);
+  pointer-events: none;
+}
+
+.game-container {
+  overflow: hidden;
 }
 </style>

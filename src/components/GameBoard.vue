@@ -1,11 +1,28 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { sortCards, formatCard, SUIT_SYMBOLS } from '../utils/cardUtils';
 import type { Card } from '../types/game';
 
 const gameStore = useGameStore();
 const selectedCards = ref<Card[]>([]);
+const isPortrait = ref(false);
+
+// 检测屏幕方向
+function checkOrientation() {
+  isPortrait.value = window.innerHeight > window.innerWidth;
+}
+
+onMounted(() => {
+  checkOrientation();
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('orientationchange', checkOrientation);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkOrientation);
+  window.removeEventListener('orientationchange', checkOrientation);
+});
 
 const sortedHand = computed(() => sortCards(gameStore.myHand));
 
@@ -70,8 +87,15 @@ function passTurn() {
 </script>
 
 <template>
-  <div class="container-fluid py-3 vh-100 d-flex flex-column">
-    <div class="row flex-grow-1 mb-3">
+  <div class="container-fluid py-3 vh-100 d-flex flex-column game-container">
+    <!-- 横屏提示 -->
+    <div v-if="isPortrait" class="rotate-prompt">
+      <div class="rotate-icon">📱</div>
+      <h3>请旋转设备</h3>
+      <p>为了更好的游戏体验，请横屏使用</p>
+    </div>
+
+    <div class="row flex-grow-1 mb-3" :class="{ 'blur-content': isPortrait }">
       <!-- 左侧：其他玩家信息 -->
       <div class="col-12 col-lg-3 col-md-4 mb-3 mb-md-0">
         <div class="card bg-secondary text-white h-100">
@@ -302,5 +326,58 @@ function passTurn() {
 
 .badge {
   font-size: 0.75rem;
+}
+
+/* 横屏提示 */
+.rotate-prompt {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  z-index: 9999;
+  text-align: center;
+  padding: 20px;
+}
+
+.rotate-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  animation: rotate-phone 2s ease-in-out infinite;
+}
+
+@keyframes rotate-phone {
+  0%, 100% {
+    transform: rotate(-90deg);
+  }
+  50% {
+    transform: rotate(-90deg) scale(1.1);
+  }
+}
+
+.rotate-prompt h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.rotate-prompt p {
+  font-size: 1rem;
+  color: #ccc;
+}
+
+.blur-content {
+  filter: blur(5px);
+  pointer-events: none;
+}
+
+/* 游戏容器 */
+.game-container {
+  overflow: hidden;
 }
 </style>
