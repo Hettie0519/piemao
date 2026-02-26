@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useGameStore } from './stores/gameStore';
 import GameConfig from './components/GameConfig.vue';
 import GameLobby from './components/GameLobby.vue';
@@ -10,7 +10,7 @@ import { GameState } from './types/game';
 const gameStore = useGameStore();
 const playerName = ref('');
 const showWelcome = ref(true);
-const showRoomSelection = ref(false);
+const isInitializing = ref(false);
 
 onMounted(async () => {
   // 从本地存储加载昵称
@@ -18,93 +18,80 @@ onMounted(async () => {
   if (savedName) {
     playerName.value = savedName;
   }
+  
+  // 自动初始化 P2P（不输入昵称）
+  isInitializing.value = true;
+  try {
+    await gameStore.initialize('');
+    
+    // 等待 myPlayerId 被设置
+    await new Promise<void>((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (gameStore.myPlayerId) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+      
+      // 5秒超时
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        resolve();
+      }, 5000);
+    });
+    
+    console.log('初始化完成，myPlayerId:', gameStore.myPlayerId);
+    
+    // 只有当 myPlayerId 等于固定房间号时，才创建房间
+    if (gameStore.myPlayerId === 'hettie2026') {
+      console.log('我是房主，创建房间');
+      gameStore.createRoom();
+      console.log('房间创建完成，gameState:', gameStore.gameState);
+      console.log('isHost:', gameStore.isHost);
+    } else {
+      console.log('我是玩家，等待加入房间');
+    }
+    
+    // 隐藏欢迎页面
+    showWelcome.value = false;
+  } catch (error) {
+    console.error('初始化失败:', error);
+  } finally {
+    isInitializing.value = false;
+  }
 });
 
-async function enterGame() {
-  if (!playerName.value.trim()) {
-    alert('请输入昵称');
-    return;
+// 监听昵称变化并保存
+watch(playerName, (newName) => {
+  if (newName) {
+    localStorage.setItem('piemao_nickname', newName);
   }
-  
-  // 保存昵称
-  localStorage.setItem('piemao_nickname', playerName.value);
-  
-  // 初始化 P2P 连接
-  await gameStore.initialize(playerName.value);
-  
-  showWelcome.value = false;
-  showRoomSelection.value = true;
-}
-
-function createRoom() {
-  gameStore.createRoom();
-  showRoomSelection.value = false;
-}
-
-function joinRoom() {
-  // 隐藏房间选择页面，实际加入逻辑在 GameLobby 组件中处理
-  showRoomSelection.value = false;
-}
+});
 </script>
 
 <template>
   <div id="app">
-    <!-- 欢迎页面 -->
+    <!-- 欢迎页面（显示加载状态） -->
     <div v-if="showWelcome" class="welcome-container">
       <div class="welcome-card">
-        <h1 class="game-title">撇二毛</h1>
+        <h1 class="game-title">踹牌</h1>
         <p class="game-subtitle">P2P 联机扑克游戏</p>
         
-        <div class="input-group">
-          <label class="input-label" for="playerName">昵称</label>
-          <input
-            id="playerName"
-            v-model="playerName"
-            type="text"
-            class="name-input"
-            placeholder="请输入你的昵称"
-            @keyup.enter="enterGame"
-          />
-        </div>
-        
-        <button class="btn-enter" @click="enterGame">进入游戏</button>
-      </div>
-    </div>
-
-    <!-- 房间选择页面 -->
-    <div v-else-if="showRoomSelection" class="welcome-container">
-      <div class="welcome-card">
-        <h2 class="page-title">选择模式</h2>
-        <p class="greeting-text">你好，{{ playerName }}！</p>
-        
-        <div class="mode-buttons">
-          <button class="btn-mode btn-create" @click="createRoom">
-            <span class="btn-icon">🎮</span>
-            <span class="btn-content">
-              <span class="btn-text">创建房间</span>
-              <span class="btn-desc">创建房间并邀请朋友加入</span>
-            </span>
-          </button>
-          
-          <button class="btn-mode btn-join" @click="joinRoom">
-            <span class="btn-icon">🔗</span>
-            <span class="btn-content">
-              <span class="btn-text">加入房间</span>
-              <span class="btn-desc">输入房间号加入朋友的房间</span>
-            </span>
-          </button>
+        <div v-if="isInitializing" class="loading-state">
+          <div class="spinner"></div>
+          <p>正在连接房间...</p>
         </div>
       </div>
     </div>
 
-    <!-- 游戏配置 -->
-    <GameConfig v-else-if="gameStore.gameState === GameState.LOBBY && gameStore.isHost" />
+    <!-- 游戏配置（房主 - 包含昵称输入） -->
+    <GameConfig v-else-if="gameStore.gameState === GameState.LOBBY && gameStore.isHost" :playerName="playerName" @updatePlayerName="playerName = $event" />
 
-    <!-- 游戏大厅 -->
-    <GameLobby v-else-if="gameStore.gameState === GameState.LOBBY && !gameStore.isHost" />
+    <!-- 游戏大厅（玩家 - 包含昵称输入） -->
+    <GameLobby v-else-if="gameStore.gameState === GameState.LOBBY && !gameStore.isHost" :playerName="playerName" @updatePlayerName="playerName = $event" />
 
-    <!-- 游戏主界面 -->
-    <GameBoard v-else-if="gameStore.gameState === GameState.PLAYING" />
+    <!-- 游戏主界面（包含石头剪子布） -->
+    <GameBoard v-else-if="gameStore.gameState === GameState.PLAYING || gameStore.gameState === GameState.ROCK_PAPER_SCISSORS" />
 
     <!-- 游戏结果 -->
     <GameResult v-else-if="gameStore.gameState === GameState.ENDED" />
@@ -201,132 +188,36 @@ html, body {
   font-weight: 500;
 }
 
-.name-input {
-  width: 100%;
-  padding: 2vh 3vw;
-  border: none;
-  border-radius: 1vh;
-  background: rgba(255, 255, 255, 0.95);
-  color: black;
-  font-size: 2.5vmin;
-  outline: none;
-  transition: all 0.3s;
+/* 昵称输入框样式已移至组件样式文件中 */
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vh;
+  padding: 4vh 0;
 }
 
-.name-input:focus {
-  box-shadow: 0 0 0 0.4vh rgba(24, 144, 255, 0.5);
+.spinner {
+  width: 8vmin;
+  height: 8vmin;
+  border: 0.6vh solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
-.name-input::placeholder {
-  color: rgba(0, 0, 0, 0.4);
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.btn-enter {
-  width: 100%;
-  padding: 2.5vh;
-  border: none;
-  border-radius: 1.5vh;
-  background: linear-gradient(135deg, #1890FF 0%, #0D79D2 100%);
-  color: white;
-  font-size: 2.8vmin;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  letter-spacing: 0.5px;
-}
-
-.btn-enter:hover {
-  transform: scale(1.02);
-  box-shadow: 0 0.6vh 1.5vh rgba(24, 144, 255, 0.5);
-}
-
-.btn-enter:active {
-  transform: scale(0.98);
-}
-
-/* 房间选择页面 */
-.page-title {
-  font-size: 3.5vmin;
-  font-weight: 700;
-  text-align: center;
+.loading-state p {
   margin: 0;
-}
-
-.greeting-text {
   font-size: 2.2vmin;
   color: rgba(255, 255, 255, 0.8);
-  text-align: center;
-  margin: 0;
-}
-
-.mode-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 2vh;
-}
-
-.btn-mode {
-  width: 100%;
-  padding: 2.5vh 3vw;
-  border: none;
-  border-radius: 1.5vh;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 1.5vw;
-  text-align: left;
-}
-
-.btn-create {
-  background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
-  color: white;
-}
-
-.btn-join {
-  background: linear-gradient(135deg, #1890FF 0%, #0D79D2 100%);
-  color: white;
-}
-
-.btn-mode:hover {
-  transform: scale(1.02);
-  box-shadow: 0 0.6vh 1.5vh rgba(0, 0, 0, 0.3);
-}
-
-.btn-mode:active {
-  transform: scale(0.98);
-}
-
-.btn-icon {
-  font-size: 3vmin;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.btn-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5vh;
-  align-items: flex-start;
-}
-
-.btn-text {
-  font-size: 2.5vmin;
-  font-weight: 600;
-  writing-mode: horizontal-tb;
-  text-orientation: mixed;
-  line-height: 1.2;
-}
-
-.btn-desc {
-  font-size: 1.8vmin;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: 400;
-  writing-mode: horizontal-tb;
-  text-orientation: mixed;
-  line-height: 1.2;
 }
 
 /* 桌面端优化 */

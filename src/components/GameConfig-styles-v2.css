@@ -1,0 +1,274 @@
+/* 游戏容器 */
+.game-container {
+  background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 50%, #1a472a 100%);
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.config-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2vh;
+  height: 100%;
+  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.config-card {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2vh;
+  padding: 3vh 4vw;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5vh;
+  box-shadow: 0 0.8vh 2vh rgba(0, 0, 0, 0.3);
+  max-width: 600px;
+  width: 90%;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 3vmin;
+  font-weight: 700;
+  text-align: center;
+  background: linear-gradient(135deg, #a8e6cf 0%, #88d8b0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.host-icon {
+  -webkit-text-fill-color: white;
+  background: none;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.input-label {
+  font-size: 2.2vmin;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.name-input {
+  width: 100%;
+  padding: 2vh 2.5vw;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1.5vh;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 2.2vmin;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.name-input:focus {
+  border-color: #a8e6cf;
+  box-shadow: 0 0 0 0.4vh rgba(168, 230, 207, 0.3);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.name-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+}
+
+/* 牌副数配置 */
+.deck-section {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2.5vh;
+  border-radius: 1.5vh;
+}
+
+.deck-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vw;
+  margin-bottom: 1.5vh;
+}
+
+.btn-deck {
+  width: 7vh;
+  height: 7vh;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 1.5vh;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+  color: white;
+  font-size: 3.5vmin;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-deck:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(168, 230, 207, 0.4) 0%, rgba(168, 230, 207, 0.2) 100%);
+  border-color: #a8e6cf;
+  transform: scale(1.05);
+  box-shadow: 0 0.4vh 1vh rgba(168, 230, 207, 0.4);
+}
+
+.btn-deck:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn-deck:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.deck-count {
+  font-size: 4vmin;
+  font-weight: 700;
+  min-width: 4vmin;
+  text-align: center;
+  background: linear-gradient(135deg, #a8e6cf 0%, #88d8b0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 玩家列表 */
+.players-section {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2.5vh;
+  border-radius: 1.5vh;
+}
+
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.player-item {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 2vh 2.5vw;
+  border-radius: 1.5vh;
+  display: flex;
+  align-items: center;
+  gap: 1.5vw;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.player-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(0.5vh);
+}
+
+.host-badge {
+  font-size: 2.5vmin;
+}
+
+.my-badge {
+  background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+  color: white;
+  padding: 0.8vh 1.5vw;
+  border-radius: 1vmin;
+  font-size: 1.6vmin;
+  font-weight: 600;
+  margin-left: auto;
+  box-shadow: 0 0.3vh 0.6vh rgba(40, 167, 69, 0.4);
+}
+
+/* 开始按钮 */
+.btn-start {
+  width: 100%;
+  padding: 2.8vh;
+  border: none;
+  border-radius: 1.5vh;
+  background: linear-gradient(135deg, #a8e6cf 0%, #88d8b0 100%);
+  color: black;
+  font-size: 3vmin;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0.6vh 1.5vh rgba(168, 230, 207, 0.4);
+  text-transform: uppercase;
+}
+
+.btn-start:hover:not(:disabled) {
+  transform: scale(1.02);
+  box-shadow: 0 0.8vh 2vh rgba(168, 230, 207, 0.6);
+  background: linear-gradient(135deg, #88d8b0 0%, #98d8c0 100%);
+}
+
+.btn-start:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-start:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.waiting-text {
+  text-align: center;
+  color: rgba(168, 230, 207, 0.8);
+  margin: 0;
+  font-size: 2vmin;
+  font-weight: 500;
+}
+
+.help-text {
+  display: block;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.8vmin;
+  text-align: center;
+}
+
+/* 桌面端优化 */
+@media (min-width: 1024px) {
+  .config-card {
+    max-width: 700px;
+    padding: 4vh 5vw;
+  }
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .config-card {
+    padding: 2.5vh 3vw;
+    max-width: 95vw;
+  }
+  
+  .card-title {
+    font-size: 4vmin;
+  }
+  
+  .btn-start {
+    font-size: 3.5vmin;
+  }
+}

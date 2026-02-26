@@ -195,6 +195,7 @@ export function validateHand(cards: Card[], minStraight: number = 3, minSisterPa
   
   // 对子
   if (isPair(cards)) {
+    // 对4本身不是起子，只有在打炸弹时才发挥起子作用
     return { valid: true, type: HandType.PAIR, isQiZi: false };
   }
   
@@ -259,7 +260,13 @@ export function compareHands(hand1: Hand, hand2: Hand | null): ComparisonResult 
   
   // 如果上家是起子，需要更多张数才能管住
   if (hand2.isQiZi) {
-    // 压制起子需要：同类型更多张数的4 或 多2张的普通牌
+    // 普通牌型（单牌、对子、顺子、姐妹对）不能管住起子
+    const isHand1Normal = [HandType.SINGLE, HandType.PAIR, HandType.STRAIGHT, HandType.SISTER_PAIR].includes(hand1.type);
+    if (isHand1Normal) {
+      return ComparisonResult.LOSE;
+    }
+    
+    // 压制起子：同类型更多张数的4 或 多2张的普通牌
     const isSameType = hand1.type === hand2.type;
     const isAll4 = hand1.cards.every(c => c.rank === '4');
     
@@ -272,53 +279,35 @@ export function compareHands(hand1: Hand, hand2: Hand | null): ComparisonResult 
     return hand1.count >= hand2.count + 2 ? ComparisonResult.WIN : ComparisonResult.LOSE;
   }
   
-  // 同类型比较
+  // 同类型比较（包括普通牌型和特殊牌型）
   if (hand1.type === hand2.type) {
     if (hand1.count !== hand2.count) {
       return ComparisonResult.INVALID;
     }
-    // 比较点数
+    
+    // 正常的点数比较
     if (RANK_VALUES[hand1.rank] > RANK_VALUES[hand2.rank]) {
       return ComparisonResult.WIN;
     }
     return ComparisonResult.LOSE;
   }
   
-  // 撇二毛特殊规则：
-  // 单牌、对子、顺子、姐妹对之间不能互相管住
-  // 只有炸弹、轰雷、多张同点可以管住普通牌型
-  
   // 普通牌型（单牌、对子、顺子、姐妹对）
   const isHand1Normal = [HandType.SINGLE, HandType.PAIR, HandType.STRAIGHT, HandType.SISTER_PAIR].includes(hand1.type);
   const isHand2Normal = [HandType.SINGLE, HandType.PAIR, HandType.STRAIGHT, HandType.SISTER_PAIR].includes(hand2.type);
   
-  // 如果两边都是普通牌型，不能互相管住
+  // 跨类型的普通牌型不能互相管住
   if (isHand1Normal && isHand2Normal) {
     return ComparisonResult.INVALID;
   }
   
-  // 特殊牌型（炸弹、轰雷、多张同点）可以管住普通牌型
+  // 特殊牌型可以管住普通牌型
   const specialTypes = [HandType.BOMB, HandType.THUNDER, HandType.MULTI];
-  const typePriority = {
-    [HandType.SINGLE]: 1,
-    [HandType.PAIR]: 2,
-    [HandType.STRAIGHT]: 3,
-    [HandType.SISTER_PAIR]: 4,
-    [HandType.BOMB]: 5,
-    [HandType.THUNDER]: 6,
-    [HandType.MULTI]: 7,
-  };
-  
-  // 如果手1是特殊牌型，手2是普通牌型，可以管住
   if (specialTypes.includes(hand1.type) && isHand2Normal) {
     return ComparisonResult.WIN;
   }
   
-  // 不同类型比较（按优先级，但只在都是特殊牌型时）
-  if (typePriority[hand1.type] > typePriority[hand2.type]) {
-    return ComparisonResult.WIN;
-  }
-  
+  // 其他情况不能管住
   return ComparisonResult.LOSE;
 }
 
@@ -339,7 +328,18 @@ export function canBeatHand(cards: Card[], lastHand: Hand | null, minStraight: n
   }
   
   // 检查是否为起子
-  const qiZi = isQiZi(cards, lastHand.type, lastHand.count);
+  let qiZi = false;
+  if (lastHand && !lastHand.isQiZi) {
+    // 根据上家牌的张数判断目标类型
+    if (lastHand.count === 3 && lastHand.type === HandType.BOMB) {
+      qiZi = isQiZi(cards, HandType.BOMB, 3);
+    } else if (lastHand.count === 4 && lastHand.type === HandType.THUNDER) {
+      qiZi = isQiZi(cards, HandType.THUNDER, 4);
+    } else if (lastHand.count >= 5 && lastHand.type === HandType.MULTI) {
+      qiZi = isQiZi(cards, HandType.MULTI, lastHand.count);
+    }
+  }
+  
   if (qiZi) {
     return { canBeat: true, isQiZi: true };
   }

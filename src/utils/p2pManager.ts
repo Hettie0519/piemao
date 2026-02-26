@@ -2,6 +2,9 @@ import Peer from 'peerjs';
 import type { GameMessage } from '../types/game';
 import { MessageType } from '../types/game';
 
+// 固定房间号（使用更独特的ID避免冲突）
+const FIXED_ROOM_ID = 'hettie2026';
+
 // 使用免费的 PeerJS 公共服务器 + STUN/TURN 服务器
 const PEER_SERVER_CONFIG = {
   host: '0.peerjs.com',
@@ -44,6 +47,7 @@ export class P2PManager {
     onOpen?: (peerId: string) => void;
     onClose?: (peerId: string) => void;
     onError?: (error: any) => void;
+    onRoomExists?: () => void; // 新增：房间已存在回调
   } = {};
 
   constructor() {
@@ -53,9 +57,11 @@ export class P2PManager {
   /**
    * 初始化 PeerJS
    */
-  private init(): void {
+  private init(useFixedId: boolean = true): void {
     try {
-      this.peer = new Peer(PEER_SERVER_CONFIG);
+      const peerId = useFixedId ? FIXED_ROOM_ID : undefined;
+      console.log('P2P: Initializing peer with ID:', peerId || '(random)');
+      this.peer = peerId ? new Peer(peerId, PEER_SERVER_CONFIG) : new Peer(PEER_SERVER_CONFIG);
 
       this.peer.on('open', (id: any) => {
         console.log('P2P: Peer opened with ID:', id);
@@ -69,6 +75,16 @@ export class P2PManager {
 
       this.peer.on('error', (error: any) => {
         console.error('P2P: Peer error:', error);
+        console.error('P2P: Error type:', error.type);
+        console.error('P2P: Error message:', error.toString());
+        
+        // 如果是 ID 被占用的错误，说明房间已存在，通知上层
+        // 或者是 WebSocket 连接失败
+        if (error.type === 'peer-unavailable' || error.toString().includes('is taken') || error.toString().includes('WebSocket') || error.toString().includes('Could not connect')) {
+          console.log('房间号已被占用或连接失败，可以加入现有房间');
+          this.connectionHandlers.onRoomExists?.();
+        }
+        
         this.connectionHandlers.onError?.(error);
       });
 
@@ -80,6 +96,46 @@ export class P2PManager {
       console.error('P2P: Failed to initialize peer:', error);
       this.connectionHandlers.onError?.(error);
     }
+  }
+
+  /**
+   * 重新初始化用于加入房间（不使用固定ID）
+   */
+  async reinitForJoin(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      console.log('P2P: Reinitializing for join...');
+      
+      // 销毁旧的 peer
+      if (this.peer) {
+        this.peer.destroy();
+        this.peer = null;
+      }
+      
+      // 清空连接
+      this.connections.clear();
+      
+      // 重新初始化，不使用固定 ID
+      this.init(false);
+      
+      // 等待 peer 打开
+      const checkReady = () => {
+        if (this.peer && this.myId) {
+          console.log('P2P: Reinit complete, new ID:', this.myId);
+          resolve();
+        } else {
+          setTimeout(checkReady, 100);
+        }
+      };
+      
+      // 设置一个超时
+      setTimeout(() => {
+        if (!this.myId) {
+          reject(new Error('Reinit timeout'));
+        }
+      }, 10000);
+      
+      checkReady();
+    });
   }
 
   /**
@@ -235,6 +291,13 @@ export class P2PManager {
    */
   onMessage(type: MessageType, handler: (message: GameMessage) => void): void {
     this.messageHandlers.set(type, handler);
+  }
+
+  /**
+   * 设置房间已存在的回调
+   */
+  setOnRoomExists(callback: () => void): void {
+    this.connectionHandlers.onRoomExists = callback;
   }
 
   /**

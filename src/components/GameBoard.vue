@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { sortCards, formatCard, SUIT_SYMBOLS } from '../utils/cardUtils';
 import type { Card } from '../types/game';
+import { GameState } from '../types/game';
+import RockPaperScissors from './RockPaperScissors.vue';
 
 const gameStore = useGameStore();
 const selectedCards = ref<Card[]>([]);
@@ -36,9 +38,28 @@ const rightPlayers = computed(() => {
   return players.slice(1);
 });
 
+// 获取左侧玩家在原数组中的实际索引
+function getLeftPlayerActualIndex(index: number) {
+  const players = gameStore.players;
+  const leftPlayer = leftPlayers.value[index];
+  if (!leftPlayer) return -1;
+  return players.findIndex(p => p.id === leftPlayer.id);
+}
+
+// 获取左侧玩家在玩家列表中的索引
+function getLeftPlayerIndex(index: number) {
+  const players = gameStore.players;
+  const leftPlayer = leftPlayers.value[index];
+  if (!leftPlayer) return -1;
+  return players.findIndex(p => p.id === leftPlayer.id);
+}
+
 // 获取右侧玩家在原数组中的实际索引
 function getRightPlayerActualIndex(index: number) {
-  return index + 1;
+  const players = gameStore.players;
+  const rightPlayer = rightPlayers.value[index];
+  if (!rightPlayer) return -1;
+  return players.findIndex(p => p.id === rightPlayer.id);
 }
 
 // 获取右侧玩家在玩家列表中的索引
@@ -113,13 +134,15 @@ function isLineEnd(index: number) {
 
 <template>
   <div class="game-container">
+    <!-- 石头剪子布模态框 -->
+    <RockPaperScissors v-if="gameStore.gameState === GameState.ROCK_PAPER_SCISSORS" />
+    
     <!-- 游戏界面 -->
     <div class="game-layout">
       <!-- 顶部信息栏 -->
       <div class="top-bar">
         <div class="game-title">
-          <h1>撇二毛</h1>
-          <span class="room-info">房间: {{ gameStore.roomId }}</span>
+          <h1>踹牌</h1>
         </div>
         <div class="deck-info">
           <span>牌副数: {{ gameStore.config.deckCount }}</span>
@@ -133,11 +156,11 @@ function isLineEnd(index: number) {
           v-for="(player, index) in leftPlayers"
           :key="player!.id"
           class="player-left"
-          :class="{ 'current-turn': index === gameStore.currentPlayerIndex }"
+          :class="{ 'current-turn': getLeftPlayerIndex(index) === gameStore.currentPlayerIndex }"
         >
           <div class="player-info">
             <span v-if="player!.isHost" class="crown">👑</span>
-            <span class="player-number">{{ index + 1 }}</span>
+            <span class="player-number">{{ getLeftPlayerActualIndex(index) + 1 }}</span>
             <span class="player-name">{{ player!.name }}</span>
             <span class="player-hand-count">{{ player!.handCount }} 张</span>
           </div>
@@ -298,12 +321,6 @@ function isLineEnd(index: number) {
   color: #fff;
   margin: 0;
   letter-spacing: 0.3vmin;
-  white-space: nowrap;
-}
-
-.room-info {
-  font-size: 1.3vmin;
-  color: rgba(255, 255, 255, 0.7);
   white-space: nowrap;
 }
 
@@ -534,11 +551,12 @@ function isLineEnd(index: number) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.5vh;
   width: 100%;
   padding: 0 2vw;
-  overflow: hidden;
+  overflow: visible;
+  padding-top: 1vh;
 }
 
 .hand-cards {
@@ -546,7 +564,7 @@ function isLineEnd(index: number) {
   flex-wrap: wrap;
   gap: 0;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   max-width: 90vw;
   padding: 0.5vh;
@@ -587,8 +605,9 @@ function isLineEnd(index: number) {
   margin-right: 0;
 }
 
-/* 桌面端优化 */
-@media (min-width: 1024px) {
+/* 花色颜色 */
+.hand-card.hearts,
+.hand-card.diamonds {
   color: #dc3545;
 }
 
@@ -597,6 +616,15 @@ function isLineEnd(index: number) {
   color: #000;
 }
 
+/* 选中状态 */
+.hand-card.selected {
+  transform: translateY(-0.8vh) scale(1.05);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  border-color: #ffd700;
+  border-width: 3px;
+}
+
+/* 卡牌内容定位 */
 .card-content {
   position: absolute;
   top: 0.3vh;
@@ -611,13 +639,33 @@ function isLineEnd(index: number) {
   font-size: 1.8vmin;
   font-weight: bold;
   line-height: 1;
-  min-font-size: 14px;
 }
 
 .card-suit {
   font-size: 2.2vmin;
   line-height: 1;
-  min-font-size: 16px;
+}
+
+/* 红桃三特殊标记 */
+.hand-card.red-heart-3 {
+  border-color: #ffd700;
+  border-width: 3px;
+}
+
+/* 桌面端优化 */
+@media (min-width: 1024px) {
+  .card-rank {
+    font-size: 1.8vmin;
+    font-weight: bold;
+    line-height: 1;
+    min-font-size: 14px;
+  }
+
+  .card-suit {
+    font-size: 2.2vmin;
+    line-height: 1;
+    min-font-size: 16px;
+  }
 }
 
 /* 取消选择按钮 */
@@ -669,7 +717,6 @@ function isLineEnd(index: number) {
     font-size: 1.8vmin;
   }
   
-  .room-info,
   .deck-info {
     font-size: 1.1vmin;
   }

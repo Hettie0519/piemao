@@ -107,15 +107,28 @@ export function generateSeed(): string {
 }
 
 /**
- * 查找红桃3的持有者
+ * 查找所有红桃3的持有者
  */
-export function findRedHeart3Holder(hands: Card[][]): number | null {
+export function findAllRedHeart3Holders(hands: Card[][]): number[] {
+  const holders: number[] = [];
   for (let i = 0; i < hands.length; i++) {
     const hand = hands[i];
     if (hand && hand.some(card => card.isRedHeart3)) {
-      return i;
+      holders.push(i);
     }
   }
+  return holders;
+}
+
+/**
+ * 查找红桃3的持有者（兼容旧接口）
+ * @returns 红桃3持有者的索引，如果没有或多个则返回null
+ */
+export function findRedHeart3Holder(hands: Card[][]): number | null {
+  const holders = findAllRedHeart3Holders(hands);
+  if (holders.length === 0) return null;
+  if (holders.length === 1) return holders[0] || null;
+  // 多个玩家持有红桃3时返回null，需要通过石头剪子布决定
   return null;
 }
 

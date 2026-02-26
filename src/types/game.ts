@@ -53,6 +53,7 @@ export interface GameConfig {
 export enum GameState {
   LOBBY = 'lobby',        // 大厅等待中
   DEALING = 'dealing',    // 发牌中
+  ROCK_PAPER_SCISSORS = 'rock_paper_scissors', // 石头剪子布决定先手
   PLAYING = 'playing',    // 游戏进行中
   ENDED = 'ended',        // 游戏结束
 }
@@ -65,6 +66,7 @@ export enum MessageType {
   LEAVE_ROOM = 'leave_room',
   PLAYER_JOIN = 'player_join',
   PLAYER_LEAVE = 'player_leave',
+  UPDATE_PLAYER_NAME = 'update_player_name', // 更新玩家昵称
   
   // 游戏控制
   GAME_START = 'game_start',
@@ -74,6 +76,7 @@ export enum MessageType {
   // 游戏操作
   PLAY_HAND = 'play_hand',
   PASS = 'pass',
+  RPS_CHOICE = 'rps_choice', // 石头剪子布选择
   
   // 状态同步
   STATE_SYNC = 'state_sync',
@@ -113,4 +116,18 @@ export enum ComparisonResult {
   WIN = 'win',
   LOSE = 'lose',
   INVALID = 'invalid',
+}
+
+// 石头剪子布选择
+export enum RockPaperScissorsChoice {
+  ROCK = 'rock',        // 石头
+  PAPER = 'paper',      // 布
+  SCISSORS = 'scissors', // 剪刀
+}
+
+// 石头剪子布选择记录
+export interface RPSChoice {
+  playerId: string;
+  choice: RockPaperScissorsChoice;
+  timestamp: number;
 }

@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Card, Player, GameConfig, GameMessage, Hand } from '../types/game';
-import { GameState, MessageType, ComparisonResult } from '../types/game';
+import { GameState, MessageType, RockPaperScissorsChoice } from '../types/game';
 import { p2pManager } from '../utils/p2pManager';
-import { dealGame, findRedHeart3Holder, generateSeed } from '../utils/dealer';
-import { sortCards, validateHand, createHand, compareHands } from '../utils/cardUtils';
+import { dealGame, findRedHeart3Holder, findAllRedHeart3Holders, generateSeed } from '../utils/dealer';
+import { sortCards, validateHand, canBeatHand } from '../utils/cardUtils';
 
 export const useGameStore = defineStore('game', () => {
   // 玩家信息
@@ -35,6 +35,11 @@ export const useGameStore = defineStore('game', () => {
   const lastHand = ref<Hand | null>(null);
   const lastPlayerId = ref<string | null>(null);
   const consecutivePasses = ref(0);
+  
+  // 石头剪子布状态
+  const rpsPlayers = ref<number[]>([]); // 需要进行石头剪子布的玩家索引
+  const rpsChoices = ref<Map<string, RockPaperScissorsChoice>>(new Map()); // 玩家的选择
+  const myRPSChoice = ref<RockPaperScissorsChoice | null>(null);
   
   // 计算属性
   const myPlayer = computed(() => {
@@ -68,7 +73,40 @@ export const useGameStore = defineStore('game', () => {
   async function initialize(playerName: string): Promise<void> {
     myPlayerName.value = playerName;
     
-    // 等待 PeerJS 初始化完成
+    let roomExistsHandled = false;
+    let reinitInProgress = false;
+    
+    // 设置房间已存在的回调
+    p2pManager.setOnRoomExists(() => {
+      if (reinitInProgress) {
+        console.log('重新初始化已在进行中，跳过');
+        return;
+      }
+      
+      console.log('检测到房间已存在，重新初始化Peer并加入房间');
+      roomExistsHandled = true;
+      reinitInProgress = true;
+      
+      // 重新初始化 PeerJS 来连接
+      p2pManager.reinitForJoin().then(() => {
+        console.log('PeerJS 重新初始化成功，开始加入房间');
+        // 重新初始化后，设置 myPlayerId
+        myPlayerId.value = p2pManager.getMyId();
+        console.log('重新初始化后的 ID:', myPlayerId.value);
+        // 注册消息处理器
+        registerMessageHandlers();
+        // 加入房间
+        joinRoom('hettie2026');
+      }).catch(error => {
+        console.error('重新初始化失败:', error);
+        reinitInProgress = false;
+      });
+    });
+    
+    // 延迟一下，确保如果 peer 已经失败了，error 事件能够触发回调
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 等待 PeerJS 初始化完成或检测到房间被占用
     await new Promise<void>((resolve) => {
       const checkInterval = setInterval(() => {
         const id = p2pManager.getMyId();
@@ -77,13 +115,18 @@ export const useGameStore = defineStore('game', () => {
           clearInterval(checkInterval);
           resolve();
         }
+        if (roomExistsHandled) {
+          clearInterval(checkInterval);
+          resolve();
+        }
       }, 100);
     });
     
-    console.log('初始化完成，我的 ID:', myPlayerId.value);
-    
-    // 注册消息处理器
-    registerMessageHandlers();
+    if (myPlayerId.value) {
+      console.log('初始化完成，我的 ID:', myPlayerId.value);
+      // 注册消息处理器
+      registerMessageHandlers();
+    }
   }
   
   /**
@@ -92,7 +135,8 @@ export const useGameStore = defineStore('game', () => {
   function createRoom(): void {
     isHost.value = true;
     p2pManager.setAsHost();
-    roomId.value = generateSeed().substring(0, 8).toUpperCase();
+    // 使用固定房间ID
+    roomId.value = 'hettie2026';
     
     // 添加自己到玩家列表
     players.value = [{
@@ -111,6 +155,13 @@ export const useGameStore = defineStore('game', () => {
    */
   async function joinRoom(hostId: string): Promise<boolean> {
     try {
+      // 检查是否已经加入房间
+      const alreadyJoined = players.value.some(p => p.id === myPlayerId.value);
+      if (alreadyJoined) {
+        console.log('已经加入房间，不再重复加入');
+        return true;
+      }
+      
       // 确保 myPlayerId 已设置
       if (!myPlayerId.value) {
         console.warn('myPlayerId 未设置，尝试重新获取');
@@ -191,16 +242,44 @@ export const useGameStore = defineStore('game', () => {
     
     // 找到红桃3的持有者
     const redHeart3HolderIndex = findRedHeart3Holder(hands);
+    const redHeart3Holders = findAllRedHeart3Holders(hands);
+    
+    console.log('红桃3持有者检测结果:', {
+      redHeart3HolderIndex,
+      redHeart3Holders,
+      deckCount: config.value.deckCount,
+      playerCount: players.value.length,
+    });
     
     // 更新每个玩家的手牌数量
     players.value.forEach((player, index) => {
       if (hands[index]) {
         player.handCount = hands[index].length;
+        // 调试：打印每个玩家的红桃3数量
+        const redHeart3Count = hands[index].filter(c => c.isRedHeart3).length;
+        console.log(`玩家 ${index} (${player.name}) 的红桃3数量: ${redHeart3Count}`);
       }
     });
     
-    // 设置当前玩家（红桃3持有者）
-    currentPlayerIndex.value = redHeart3HolderIndex !== null ? redHeart3HolderIndex : 0;
+    // 设置当前玩家
+    if (redHeart3HolderIndex !== null) {
+      // 只有一个玩家持有红桃3，直接先出牌
+      currentPlayerIndex.value = redHeart3HolderIndex;
+      gameState.value = GameState.PLAYING;
+    } else if (redHeart3Holders.length > 1) {
+      // 多个玩家持有红桃3，需要石头剪子布决定
+      rpsPlayers.value = redHeart3Holders;
+      rpsChoices.value.clear();
+      myRPSChoice.value = null;
+      gameState.value = GameState.ROCK_PAPER_SCISSORS;
+      console.log(`多个玩家持有红桃3，需要石头剪子布决定先手: ${redHeart3Holders.join(', ')}`);
+    } else {
+      // 没有人持有红桃3（不应该发生），随机选择一个
+      currentPlayerIndex.value = 0;
+      gameState.value = GameState.PLAYING;
+      console.log('没有人持有红桃3，随机选择玩家0先出牌');
+    }
+    
     lastHand.value = null;
     lastPlayerId.value = null;
     consecutivePasses.value = 0;
@@ -222,11 +301,14 @@ export const useGameStore = defineStore('game', () => {
         playerOrder: players.value.map(p => p.id),
         currentPlayerIndex: currentPlayerIndex.value,
         players: players.value, // 添加玩家列表，包含手牌数量
+        gameState: gameState.value, // 包含游戏状态（可能是ROCK_PAPER_SCISSORS或PLAYING）
+        rpsPlayers: rpsPlayers.value, // 添加石头剪刀布玩家列表
       },
     };
     p2pManager.broadcast(message);
     
-    gameState.value = GameState.PLAYING;
+    // 主机已经设置了游戏状态，不需要再设置
+    // gameState.value = GameState.PLAYING; // 删除这行
   }
   
   /**
@@ -247,19 +329,20 @@ export const useGameStore = defineStore('game', () => {
     }
     
     // 检查是否可以管住上家的牌
+    let beatResult = { canBeat: true, isQiZi: false };
     if (lastHand.value && lastHand.value.cards.length > 0) {
-      const currentHand = createHand(cards, validation);
-      const comparison = compareHands(currentHand, lastHand.value);
+      beatResult = canBeatHand(cards, lastHand.value, config.value.minStraight, config.value.minSisterPair);
       
       console.log('牌型比较:', {
-        currentHand: currentHand.type,
+        currentHand: validation.type,
         lastHand: lastHand.value.type,
-        comparison: comparison,
+        canBeat: beatResult.canBeat,
+        isQiZi: beatResult.isQiZi,
         currentCards: cards.map(c => `${c.suit}${c.rank}`),
         lastCards: lastHand.value.cards.map(c => `${c.suit}${c.rank}`),
       });
       
-      if (comparison !== ComparisonResult.WIN) {
+      if (!beatResult.canBeat) {
         alert('你的牌管不住上家的牌');
         return;
       }
@@ -276,7 +359,7 @@ export const useGameStore = defineStore('game', () => {
         cards: cards.map(c => c.id),
         cardDetails: cards, // 包含完整的牌面信息供显示
         handType: validation.type,
-        isQiZi: validation.isQiZi || false,
+        isQiZi: beatResult.isQiZi || validation.isQiZi || false, // 使用 canBeatHand 的结果
         nextPlayerIndex: nextPlayerIndex, // 包含下一个玩家索引
       },
     };
@@ -356,7 +439,7 @@ export const useGameStore = defineStore('game', () => {
    * 处理游戏开始消息
    */
   function handleGameStart(message: GameMessage): void {
-    const { seed, config: newConfig, playerOrder, currentPlayerIndex: newCurrentPlayerIndex, players: updatedPlayers } = message.payload;
+    const { seed, config: newConfig, playerOrder, currentPlayerIndex: newCurrentPlayerIndex, players: updatedPlayers, gameState: newGameState, rpsPlayers: newRpsPlayers } = message.payload;
     
     gameSeed.value = seed;
     config.value = newConfig;
@@ -374,7 +457,17 @@ export const useGameStore = defineStore('game', () => {
       myHand.value = sortCards(hands[myIndex]);
     }
     
-    gameState.value = GameState.PLAYING;
+    // 使用消息中的游戏状态，而不是直接设置为PLAYING
+    gameState.value = newGameState || GameState.PLAYING;
+    
+    // 如果是石头剪刀布状态，更新rpsPlayers
+    if (newGameState === GameState.ROCK_PAPER_SCISSORS && newRpsPlayers) {
+      rpsPlayers.value = newRpsPlayers;
+      rpsChoices.value.clear();
+      myRPSChoice.value = null;
+    }
+    
+    console.log(`handleGameStart: 游戏状态设置为 ${gameState.value}`);
   }
   
   /**
@@ -518,6 +611,13 @@ export const useGameStore = defineStore('game', () => {
   async function handlePlayerJoin(message: GameMessage): Promise<void> {
     if (!isHost.value) return;
     
+    // 检查玩家是否已经存在
+    const existingPlayer = players.value.find(p => p.id === message.senderId);
+    if (existingPlayer) {
+      console.log('玩家已存在，忽略重复加入请求:', message.senderId);
+      return;
+    }
+    
     const newPlayer: Player = {
       id: message.senderId,
       name: message.payload.playerName,
@@ -575,6 +675,70 @@ export const useGameStore = defineStore('game', () => {
   }
   
   /**
+   * 处理玩家昵称更新
+   */
+  function handlePlayerNameUpdate(message: GameMessage): void {
+    if (!isHost.value) return;
+    
+    const { playerId, playerName } = message.payload;
+    console.log('收到昵称更新请求:', playerId, playerName);
+    
+    if (playerId && playerName) {
+      const player = players.value.find(p => p.id === playerId);
+      if (player) {
+        console.log('更新玩家昵称:', playerId, '从', player.name, '到', playerName);
+        player.name = playerName;
+        
+        // 广播昵称更新给所有玩家
+        const updateMsg: GameMessage = {
+          type: MessageType.UPDATE_PLAYER_NAME,
+          timestamp: Date.now(),
+          senderId: myPlayerId.value,
+          payload: { playerId, playerName },
+        };
+        p2pManager.broadcast(updateMsg);
+        console.log('已广播昵称更新给所有玩家');
+      } else {
+        console.log('未找到玩家:', playerId);
+      }
+    }
+  }
+  
+  /**
+   * 广播昵称更新（房主使用）
+   */
+  function broadcastPlayerNameUpdate(playerName: string): void {
+    if (!isHost.value) return;
+    
+    const updateMsg: GameMessage = {
+      type: MessageType.UPDATE_PLAYER_NAME,
+      timestamp: Date.now(),
+      senderId: myPlayerId.value,
+      payload: { playerId: myPlayerId.value, playerName },
+    };
+    p2pManager.broadcast(updateMsg);
+  }
+  
+  /**
+   * 发送昵称更新给房主（玩家使用）
+   */
+  function sendPlayerNameUpdate(playerName: string): void {
+    if (isHost.value) return;
+    
+    const updateMsg: GameMessage = {
+      type: MessageType.UPDATE_PLAYER_NAME,
+      timestamp: Date.now(),
+      senderId: myPlayerId.value,
+      payload: { playerId: myPlayerId.value, playerName },
+    };
+    
+    const hostId = p2pManager.getHostId();
+    if (hostId) {
+      p2pManager.sendTo(hostId, updateMsg);
+    }
+  }
+  
+  /**
    * 注册消息处理器
    */
   function registerMessageHandlers(): void {
@@ -584,6 +748,27 @@ export const useGameStore = defineStore('game', () => {
     p2pManager.onMessage(MessageType.PASS, handlePass);
     p2pManager.onMessage(MessageType.JOIN_ROOM, handlePlayerJoin);
     p2pManager.onMessage(MessageType.LEAVE_ROOM, handlePlayerLeave);
+    p2pManager.onMessage(MessageType.RPS_CHOICE, handleRPSChoice);
+    
+    // 处理昵称更新（请求或广播）
+    p2pManager.onMessage(MessageType.UPDATE_PLAYER_NAME, (message: GameMessage) => {
+      console.log('收到昵称更新消息:', message, 'isHost:', isHost.value);
+      
+      if (isHost.value) {
+        // 我是房主，这是昵称更新请求
+        handlePlayerNameUpdate(message);
+      } else {
+        // 我是玩家，这是昵称更新广播
+        const { playerId, playerName } = message.payload;
+        if (playerId && playerName) {
+          const player = players.value.find(p => p.id === playerId);
+          if (player) {
+            console.log('更新玩家昵称（玩家）:', playerId, playerName);
+            player.name = playerName;
+          }
+        }
+      }
+    });
     
     // 处理玩家加入广播（非主机玩家接收）
     p2pManager.onMessage(MessageType.PLAYER_JOIN, (message: GameMessage) => {
@@ -599,7 +784,17 @@ export const useGameStore = defineStore('game', () => {
     p2pManager.onMessage(MessageType.STATE_SYNC, (message: GameMessage) => {
       if (isHost.value) return;
       
-      const { players: updatedPlayers, config: newConfig, roomId: newRoomId } = message.payload;
+      console.log('收到状态同步消息:', message.payload);
+      
+      const { 
+        players: updatedPlayers, 
+        config: newConfig, 
+        roomId: newRoomId,
+        gameState: newGameState,
+        currentPlayerIndex: newCurrentPlayerIndex,
+        rpsReset
+      } = message.payload;
+      
       if (updatedPlayers) {
         players.value = updatedPlayers;
       }
@@ -608,6 +803,30 @@ export const useGameStore = defineStore('game', () => {
       }
       if (newRoomId) {
         roomId.value = newRoomId;
+      }
+      if (newGameState !== undefined) {
+        gameState.value = newGameState;
+        console.log('游戏状态同步为:', newGameState);
+      }
+      if (newCurrentPlayerIndex !== undefined) {
+        currentPlayerIndex.value = newCurrentPlayerIndex;
+        console.log('当前玩家索引同步为:', newCurrentPlayerIndex);
+      }
+      
+      // 处理石头剪子布重置
+      if (rpsReset) {
+        console.log('收到石头剪子布重置信号');
+        // 只清空选择，不清空玩家列表
+        rpsChoices.value.clear();
+        myRPSChoice.value = null;
+        console.log('石头剪子布已重置，myRPSChoice:', myRPSChoice.value);
+      }
+      
+      // 清理石头剪子布状态（当游戏开始时）
+      if (newGameState === GameState.PLAYING) {
+        rpsPlayers.value = [];
+        rpsChoices.value.clear();
+        myRPSChoice.value = null;
       }
     });
     
@@ -636,6 +855,147 @@ export const useGameStore = defineStore('game', () => {
     startGame();
   }
   
+  /**
+   * 提交石头剪子布选择
+   */
+  function submitRPSChoice(choice: RockPaperScissorsChoice): void {
+    if (gameState.value !== GameState.ROCK_PAPER_SCISSORS) return;
+    
+    myRPSChoice.value = choice;
+    
+    const message: GameMessage = {
+      type: MessageType.RPS_CHOICE,
+      timestamp: Date.now(),
+      senderId: myPlayerId.value,
+      payload: {
+        choice,
+      },
+    };
+    
+    // 如果是主机，处理选择
+    if (isHost.value) {
+      handleRPSChoice(message);
+    } else {
+      // 发送给主机
+      const host = players.value.find(p => p.isHost);
+      if (host) {
+        p2pManager.broadcast(message);
+      }
+    }
+  }
+  
+  /**
+   * 处理石头剪子布选择
+   */
+  function handleRPSChoice(message: GameMessage): void {
+    const { choice } = message.payload;
+    rpsChoices.value.set(message.senderId, choice);
+    
+    console.log(`收到 ${message.senderId} 的石头剪子布选择: ${choice}`);
+    
+    // 检查是否所有参与石头剪子布的玩家都已选择
+    const allChosen = rpsPlayers.value.every(index => {
+      const player = players.value[index];
+      return player && rpsChoices.value.has(player.id);
+    });
+    
+    if (allChosen) {
+      determineRPSWinner();
+    }
+  }
+  
+  /**
+   * 判断石头剪子布的胜负
+   */
+  function determineRPSWinner(): void {
+    if (!isHost.value) return;
+    
+    const choices: Array<{ playerId: string; choice: RockPaperScissorsChoice }> = [];
+    
+    rpsPlayers.value.forEach(index => {
+      const player = players.value[index];
+      if (player) {
+        const choice = rpsChoices.value.get(player.id);
+        if (choice) {
+          choices.push({ playerId: player.id, choice });
+        }
+      }
+    });
+    
+    // 简单的石头剪子布逻辑：如果有平局，重新开始
+    let winnerIndex = -1;
+    
+    // 检查是否所有人都出一样的（平局）
+    const firstChoice = choices[0]?.choice;
+    const allSame = choices.every(c => c.choice === firstChoice);
+    
+    if (allSame && choices.length > 1) {
+      // 平局，重新开始石头剪子布
+      rpsChoices.value.clear();
+      myRPSChoice.value = null;
+      console.log('石头剪子布平局，重新开始');
+      console.log('广播石头剪子布重置消息');
+      
+      // 广播平局消息，让所有玩家重新选择
+      const message: GameMessage = {
+        type: MessageType.STATE_SYNC,
+        timestamp: Date.now(),
+        senderId: myPlayerId.value,
+        payload: {
+          rpsReset: true, // 标记为石头剪子布重置
+        },
+      };
+      p2pManager.broadcast(message);
+      return;
+    }
+    
+    // 找出胜者
+    const winner = choices.reduce((prev, current) => {
+      return compareRPS(current.choice, prev.choice) > 0 ? current : prev;
+    });
+    
+    winnerIndex = rpsPlayers.value.findIndex(index => {
+      const player = players.value[index];
+      return player && player.id === winner.playerId;
+    });
+    
+    if (winnerIndex !== -1) {
+      currentPlayerIndex.value = winnerIndex;
+      gameState.value = GameState.PLAYING;
+      rpsPlayers.value = [];
+      rpsChoices.value.clear();
+      console.log(`石头剪子布结束，玩家 ${winnerIndex} 获胜，先出牌`);
+      
+      // 广播结果（包含玩家手牌信息）
+      const message: GameMessage = {
+        type: MessageType.STATE_SYNC,
+        timestamp: Date.now(),
+        senderId: myPlayerId.value,
+        payload: {
+          currentPlayerIndex: winnerIndex,
+          gameState: GameState.PLAYING,
+          players: players.value, // 包含玩家手牌信息
+        },
+      };
+      p2pManager.broadcast(message);
+    }
+  }
+  
+  /**
+   * 比较两个石头剪子布选择
+   * 返回：1表示c1胜，-1表示c2胜，0表示平局
+   */
+  function compareRPS(c1: RockPaperScissorsChoice, c2: RockPaperScissorsChoice): number {
+    if (c1 === c2) return 0;
+    
+    // 石头胜剪刀，剪刀胜布，布胜石头
+    if (c1 === RockPaperScissorsChoice.ROCK && c2 === RockPaperScissorsChoice.SCISSORS) return 1;
+    if (c1 === RockPaperScissorsChoice.SCISSORS && c2 === RockPaperScissorsChoice.PAPER) return 1;
+    if (c1 === RockPaperScissorsChoice.PAPER && c2 === RockPaperScissorsChoice.ROCK) return 1;
+    
+    return -1;
+  }
+  
   return {
     // 状态
     myPlayerId,
@@ -645,11 +1005,15 @@ export const useGameStore = defineStore('game', () => {
     isHost,
     config,
     gameState,
+    gameSeed,
     myHand,
     currentPlayerIndex,
     lastHand,
     lastPlayerId,
     consecutivePasses,
+    rpsPlayers,
+    rpsChoices,
+    myRPSChoice,
     
     // 计算属性
     myPlayer,
@@ -665,5 +1029,8 @@ export const useGameStore = defineStore('game', () => {
     playHand,
     pass,
     nextRound,
+    submitRPSChoice,
+    broadcastPlayerNameUpdate,
+    sendPlayerNameUpdate,
   };
 });

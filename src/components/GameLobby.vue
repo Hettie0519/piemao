@@ -1,13 +1,47 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
+import './GameLobby-styles-v2.css';
 
 const gameStore = useGameStore();
-const hostIdInput = ref('');
 const joining = ref(false);
+const FIXED_ROOM_ID = 'hettie2026';
+
+const props = defineProps<{
+  playerName: string;
+}>();
+
+const emit = defineEmits<{
+  updatePlayerName: [name: string];
+}>();
+
+// 监听昵称变化
+watch(() => props.playerName, (newName: string) => {
+  console.log('watch 被触发，props.playerName:', newName);
+  console.log('watch 被触发，gameStore.myPlayerName:', gameStore.myPlayerName);
+  if (newName) {
+    gameStore.myPlayerName = newName;
+    // 发送昵称更新给房主
+    console.log('发送昵称更新给房主:', newName);
+    gameStore.sendPlayerNameUpdate(newName);
+  }
+});
+
+function onNameInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  console.log('onNameInput 被调用:', target.value);
+  emit('updatePlayerName', target.value);
+}
 
 onMounted(() => {
   // 空实现，不需要检测屏幕方向
+  
+  // 如果昵称不为空，立即发送昵称更新
+  if (props.playerName && props.playerName.trim()) {
+    console.log('组件挂载时昵称已存在，立即发送昵称更新:', props.playerName);
+    gameStore.myPlayerName = props.playerName;
+    gameStore.sendPlayerNameUpdate(props.playerName);
+  }
 });
 
 onUnmounted(() => {
@@ -15,68 +49,69 @@ onUnmounted(() => {
 });
 
 async function joinRoom() {
-  if (!hostIdInput.value.trim()) {
-    alert('请输入房间号');
-    return;
-  }
-  
   joining.value = true;
-  const success = await gameStore.joinRoom(hostIdInput.value);
+  const success = await gameStore.joinRoom(FIXED_ROOM_ID);
   
   if (!success) {
-    alert('加入房间失败，请检查房间号是否正确');
+    alert('加入房间失败，请检查网络连接');
     joining.value = false;
   } else {
-    // 成功加入，等待游戏开始
     joining.value = false;
     console.log('成功加入房间，等待房主开始游戏');
   }
 }
+
+// 自动加入房间
+onMounted(() => {
+  // 延迟一下，确保初始化完成
+  setTimeout(() => {
+    if (!gameStore.isHost) {
+      joinRoom();
+    }
+  }, 500);
+});
 </script>
 
 <template>
   <div class="game-container vh-100 d-flex flex-column">
-<!-- 大厅界面 -->
+    <!-- 大厅界面 -->
     <div class="lobby-content">
       <div class="lobby-card">
-        <h2 class="lobby-title">加入房间</h2>
+        <h2 class="lobby-title">等待房主开始游戏</h2>
+        
+        <!-- 昵称输入 -->
         <div class="input-group">
+          <label class="input-label">你的昵称</label>
           <input
-            v-model="hostIdInput"
+            :value="playerName"
+            @input="onNameInput"
             type="text"
-            class="form-input"
-            placeholder="请粘贴完整的房间号（约36个字符）"
-            @keyup.enter="joinRoom"
+            class="name-input"
+            placeholder="请输入你的昵称"
           />
-          <button
-            v-if="gameStore.players.length === 0"
-            class="btn-join"
-            @click="joinRoom"
-            :disabled="joining"
-          >
-            {{ joining ? '加入中...' : '加入房间' }}
-          </button>
         </div>
-        <small class="help-text">
-          ⚠️ 必须粘贴房主分享的完整房间号，不能有任何遗漏
-        </small>
-      </div>
-
-      <!-- 玩家列表 -->
-      <div v-if="gameStore.players.length > 0" class="players-card">
-        <h5 class="card-title">玩家列表</h5>
-        <div class="players-list">
-          <div
-            v-for="player in gameStore.players"
-            :key="player.id"
-            class="player-item"
-          >
-            <span v-if="player.isHost" class="host-badge">👑</span>
-            {{ player.name }}
-            <span v-if="player.id === gameStore.myPlayerId" class="my-badge">你</span>
+        
+        <div v-if="joining" class="joining-info">
+          <p>正在加入房间...</p>
+        </div>
+        
+        <div v-else class="joined-info">
+          <p>已加入房间，等待房主开始游戏...</p>
+          <p>当前玩家：{{ gameStore.players.length }} 人</p>
+          
+          <!-- 玩家列表 -->
+          <div class="players-list">
+            <div
+              v-for="player in gameStore.players"
+              :key="player.id"
+              class="player-item"
+            >
+              <span v-if="player.isHost" class="host-badge">👑</span>
+              {{ player.name || '未设置昵称' }}
+              <span v-if="player.id === gameStore.myPlayerId" class="my-badge">你</span>
+            </div>
           </div>
         </div>
-        <p class="waiting-text">等待房主开始游戏...</p>
       </div>
     </div>
   </div>
@@ -99,91 +134,70 @@ async function joinRoom() {
 .lobby-content {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 3vh;
-  height: 100%;
+  gap: 2vh;
   padding: 2vh;
+  height: 100%;
+  overflow-y: auto;
   box-sizing: border-box;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2vh;
 }
 
-.lobby-card,
-.players-card {
+.lobby-card {
   background: rgba(0, 0, 0, 0.7);
   border-radius: 2vh;
-  padding: 3vh 4vw;
+  padding: 2.5vh 3vw;
   color: white;
-  width: 100%;
-  max-width: 50vw;
-  min-width: 300px;
 }
 
 .lobby-title {
   margin: 0 0 2vh 0;
-  font-size: 3vmin;
-  text-align: center;
-}
-
-.input-group {
-  display: flex;
-  gap: 1vw;
-  margin-bottom: 1.5vh;
-}
-
-.form-input {
-  flex: 1;
-  padding: 1.5vh 2vw;
-  border: none;
-  border-radius: 1vh;
-  font-size: 2vmin;
-  font-family: monospace;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.btn-join {
-  padding: 1.5vh 3vw;
-  border: none;
-  border-radius: 1vh;
-  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);
-  color: black;
-  font-weight: bold;
-  font-size: 2vmin;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-join:hover:not(:disabled) {
-  transform: scale(1.05);
-  box-shadow: 0 0.4vh 1vh rgba(255, 193, 7, 0.5);
-}
-
-.btn-join:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.help-text {
-  display: block;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 1.8vmin;
-  text-align: center;
-}
-
-.card-title {
-  margin: 0 0 2vh 0;
   font-size: 2.5vmin;
+  text-align: center;
 }
 
-.players-list {
+/* 输入框样式 */
+.input-group {
   display: flex;
   flex-direction: column;
   gap: 1vh;
   margin-bottom: 2vh;
+}
+
+.input-label {
+  font-size: 2vmin;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+/* 加入信息 */
+.joining-info,
+.joined-info {
+  text-align: center;
+  padding: 2vh;
+}
+
+.joining-info p,
+.joined-info p {
+  margin: 1vh 0;
+  font-size: 2vmin;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* 玩家列表 */
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+  margin-top: 2vh;
 }
 
 .player-item {
@@ -208,31 +222,20 @@ async function joinRoom() {
   margin-left: auto;
 }
 
-.waiting-text {
-  text-align: center;
-  color: rgba(255, 255, 255, 0.7);
-  margin: 0;
-  font-size: 2vmin;
-}
-
 /* 桌面端优化 */
 @media (min-width: 1024px) {
   .lobby-content {
     flex-direction: row;
   }
   
-  .lobby-card,
-  .players-card {
+  .lobby-card {
     max-width: 400px;
-    max-height: 80vh;
-    overflow-y: auto;
   }
 }
 
 /* 移动端优化 */
 @media (max-width: 768px) {
-  .lobby-card,
-  .players-card {
+  .lobby-card {
     max-width: 90vw;
     padding: 2vh 3vw;
   }
@@ -241,7 +244,6 @@ async function joinRoom() {
     font-size: 4vmin;
   }
   
-  .form-input,
   .btn-join {
     font-size: 2.5vmin;
   }

@@ -1,19 +1,54 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { p2pManager } from '../utils/p2pManager';
+import './GameConfig-styles-v2.css';
 
 const gameStore = useGameStore();
-const copied = ref(false);
 const isInitializing = ref(true);
 
-const roomId = computed(() => {
-  const id = p2pManager.getMyId();
-  return id || '生成中...';
+const props = defineProps<{
+  playerName: string;
+}>();
+
+const emit = defineEmits<{
+  updatePlayerName: [name: string];
+}>();
+
+// 监听昵称变化
+watch(() => props.playerName, (newName: string) => {
+  console.log('房主昵称变化:', newName);
+  if (newName) {
+    gameStore.myPlayerName = newName;
+    // 我是房主，更新自己的昵称
+    const player = gameStore.players.find(p => p.id === gameStore.myPlayerId);
+    if (player) {
+      player.name = newName;
+      console.log('房主更新自己的昵称:', newName);
+    }
+    // 广播昵称更新
+    gameStore.broadcastPlayerNameUpdate(newName);
+  }
 });
+
+function onNameInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  emit('updatePlayerName', target.value);
+}
 
 onMounted(() => {
   // 空实现，不需要检测屏幕方向
+  
+  // 如果昵称不为空，立即发送昵称更新
+  if (props.playerName && props.playerName.trim()) {
+    console.log('组件挂载时昵称已存在，立即更新昵称:', props.playerName);
+    gameStore.myPlayerName = props.playerName;
+    const player = gameStore.players.find(p => p.id === gameStore.myPlayerId);
+    if (player) {
+      player.name = props.playerName;
+    }
+    gameStore.broadcastPlayerNameUpdate(props.playerName);
+  }
   
   // 确保房间已创建
   if (!gameStore.isHost && gameStore.gameState === 'lobby') {
@@ -33,17 +68,6 @@ onUnmounted(() => {
   // 空实现
 });
 
-function copyRoomId() {
-  const id = p2pManager.getMyId();
-  if (id) {
-    navigator.clipboard.writeText(roomId.value);
-    copied.value = true;
-    setTimeout(() => {
-      copied.value = false;
-    }, 2000);
-  }
-}
-
 function startGame() {
   if (gameStore.players.length < 2) {
     alert('至少需要2名玩家才能开始游戏');
@@ -57,73 +81,72 @@ function startGame() {
   <div class="game-container vh-100 d-flex flex-column">
 <!-- 配置界面 -->
     <div class="config-content">
-      <!-- 房间信息 -->
       <div class="config-card">
-        <h2 class="card-title">房间号</h2>
-        <div class="room-id-group">
+        <h2 class="card-title">你是房主 <span class="host-icon">👑</span></h2>
+        
+        <!-- 昵称输入 -->
+        <div class="input-group">
+          <label class="input-label">你的昵称</label>
           <input
+            :value="playerName"
+            @input="onNameInput"
             type="text"
-            class="room-id-input"
-            :value="roomId"
-            readonly
+            class="name-input"
+            placeholder="请输入你的昵称"
           />
-          <button class="btn-copy" @click="copyRoomId">
-            {{ copied ? '已复制!' : '复制' }}
-          </button>
         </div>
-        <small class="help-text">⚠️ 请复制完整的房间号分享给朋友</small>
-      </div>
-
-      <!-- 牌副数配置 -->
-      <div class="config-card">
-        <h5 class="card-title">扑克牌副数</h5>
-        <div class="deck-control">
-          <button
-            class="btn-deck"
-            @click="gameStore.config.deckCount = Math.max(1, gameStore.config.deckCount - 1)"
-            :disabled="gameStore.config.deckCount <= 1"
-          >
-            -
-          </button>
-          <span class="deck-count">{{ gameStore.config.deckCount }}</span>
-          <button
-            class="btn-deck"
-            @click="gameStore.config.deckCount = Math.min(10, gameStore.config.deckCount + 1)"
-            :disabled="gameStore.config.deckCount >= 10"
-          >
-            +
-          </button>
+        
+        <!-- 牌副数配置 -->
+        <div class="deck-section">
+          <h5 class="card-title">扑克牌副数</h5>
+          <div class="deck-control">
+            <button
+              class="btn-deck"
+              @click="gameStore.config.deckCount = Math.max(1, gameStore.config.deckCount - 1)"
+              :disabled="gameStore.config.deckCount <= 1"
+            >
+              -
+            </button>
+            <span class="deck-count">{{ gameStore.config.deckCount }}</span>
+            <button
+              class="btn-deck"
+              @click="gameStore.config.deckCount = Math.min(10, gameStore.config.deckCount + 1)"
+              :disabled="gameStore.config.deckCount >= 10"
+            >
+              +
+            </button>
+          </div>
+          <small class="help-text">牌副数越多，炸弹和大牌出现概率越高</small>
         </div>
-        <small class="help-text">牌副数越多，炸弹和大牌出现概率越高</small>
-      </div>
-
-      <!-- 玩家列表 -->
-      <div class="config-card">
-        <h5 class="card-title">玩家列表 ({{ gameStore.players.length }}/10)</h5>
-        <div class="players-list">
-          <div
-            v-for="player in gameStore.players"
-            :key="player.id"
-            class="player-item"
-          >
-            <span v-if="player.isHost" class="host-badge">👑</span>
-            {{ player.name }}
-            <span v-if="player.id === gameStore.myPlayerId" class="my-badge">你</span>
+        
+        <!-- 玩家列表 -->
+        <div class="players-section">
+          <h5 class="card-title">玩家列表 ({{ gameStore.players.length }}/10)</h5>
+          <div class="players-list">
+            <div
+              v-for="player in gameStore.players"
+              :key="player.id"
+              class="player-item"
+            >
+              <span v-if="player.isHost" class="host-badge">👑</span>
+              {{ player.name || '未设置昵称' }}
+              <span v-if="player.id === gameStore.myPlayerId" class="my-badge">你</span>
+            </div>
           </div>
         </div>
+        
+        <!-- 开始按钮 -->
+        <button
+          class="btn-start"
+          @click="startGame"
+          :disabled="gameStore.players.length < 2"
+        >
+          开始游戏
+        </button>
+        <p v-if="gameStore.players.length < 2" class="waiting-text">
+          等待更多玩家加入...
+        </p>
       </div>
-
-      <!-- 开始按钮 -->
-      <button
-        class="btn-start"
-        @click="startGame"
-        :disabled="gameStore.players.length < 2"
-      >
-        开始游戏
-      </button>
-      <p v-if="gameStore.players.length < 2" class="waiting-text">
-        等待更多玩家加入...
-      </p>
     </div>
   </div>
 </template>
@@ -167,6 +190,9 @@ function startGame() {
   border-radius: 2vh;
   padding: 2.5vh 3vw;
   color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
 }
 
 .card-title {
@@ -174,42 +200,25 @@ function startGame() {
   font-size: 2.5vmin;
 }
 
-/* 房间号 */
-.room-id-group {
+.input-group {
   display: flex;
-  gap: 1vw;
-  margin-bottom: 1.5vh;
+  flex-direction: column;
+  gap: 1vh;
 }
 
-.room-id-input {
-  flex: 1;
-  padding: 1.5vh 2vw;
-  border: none;
-  border-radius: 1vh;
-  font-size: 1.8vmin;
-  font-family: monospace;
-  background: rgba(255, 255, 255, 0.9);
-  color: black;
-}
-
-.btn-copy {
-  padding: 1.5vh 3vw;
-  border: none;
-  border-radius: 1vh;
-  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);
-  color: black;
-  font-weight: bold;
+.input-label {
   font-size: 2vmin;
-  cursor: pointer;
-  transition: all 0.2s;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
 }
 
-.btn-copy:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0.4vh 1vh rgba(255, 193, 7, 0.5);
+/* 牌副数配置 */
+.deck-section {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2vh;
+  border-radius: 1vh;
 }
 
-/* 牌副数控制 */
 .deck-control {
   display: flex;
   align-items: center;
@@ -248,11 +257,16 @@ function startGame() {
 }
 
 /* 玩家列表 */
+.players-section {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2vh;
+  border-radius: 1vh;
+}
+
 .players-list {
   display: flex;
   flex-direction: column;
   gap: 1vh;
-  margin-bottom: 1vh;
 }
 
 .player-item {
