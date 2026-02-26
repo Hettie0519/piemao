@@ -26,6 +26,23 @@ onUnmounted(() => {
 
 const sortedHand = computed(() => sortCards(gameStore.myHand));
 
+// 其他玩家列表（排除自己）
+const otherPlayers = computed(() => {
+  return gameStore.players.filter(p => p.id !== gameStore.myPlayerId);
+});
+
+// 调整后的当前玩家索引（用于其他玩家列表）
+const adjustedCurrentPlayerIndex = computed(() => {
+  const myIndex = gameStore.players.findIndex(p => p.id === gameStore.myPlayerId);
+  const currentIndex = gameStore.currentPlayerIndex;
+  
+  if (myIndex === -1 || currentIndex === myIndex) return -1;
+  
+  // 在 otherPlayers 数组中的索引
+  const adjustedIndex = currentIndex > myIndex ? currentIndex - 1 : currentIndex;
+  return adjustedIndex;
+});
+
 // 计算最后出牌的显示信息
 const lastHandDisplay = computed(() => {
   if (!gameStore.lastHand || !gameStore.lastHand.cards || gameStore.lastHand.cards.length === 0) {
@@ -87,7 +104,7 @@ function passTurn() {
 </script>
 
 <template>
-  <div class="container-fluid py-3 vh-100 d-flex flex-column game-container">
+  <div class="game-container vh-100 d-flex flex-column">
     <!-- 横屏提示 -->
     <div v-if="isPortrait" class="rotate-prompt">
       <div class="rotate-icon">📱</div>
@@ -95,137 +112,110 @@ function passTurn() {
       <p>为了更好的游戏体验，请横屏使用</p>
     </div>
 
-    <div class="row flex-grow-1 mb-3" :class="{ 'blur-content': isPortrait }">
-      <!-- 左侧：其他玩家信息 -->
-      <div class="col-12 col-lg-3 col-md-4 mb-3 mb-md-0">
-        <div class="card bg-secondary text-white h-100">
-          <div class="card-header">
-            <h5 class="mb-0">玩家</h5>
+    <!-- 游戏主界面 -->
+    <div class="game-layout flex-grow-1" :class="{ 'blur-content': isPortrait }">
+      <!-- 顶部：其他玩家信息 -->
+      <div class="top-players">
+        <div
+          v-for="(player, index) in otherPlayers"
+          :key="player.id"
+          class="player-card"
+          :class="{
+            'current-turn': index === adjustedCurrentPlayerIndex,
+          }"
+        >
+          <div class="player-avatar">
+            <span v-if="player.isHost" class="host-badge">👑</span>
+            <span class="player-name">{{ player.name }}</span>
           </div>
-          <div class="card-body overflow-auto">
-            <div
-              v-for="(player, index) in gameStore.players"
-              :key="player.id"
-              class="d-flex justify-content-between align-items-center mb-2 p-2 rounded"
-              :class="{
-                'bg-primary': index === gameStore.currentPlayerIndex,
-                'bg-success': player.id === gameStore.myPlayerId,
-              }"
-            >
-              <div>
-                <span v-if="player.isHost" class="badge bg-warning text-dark me-1">房主</span>
-                {{ player.name }}
-                <span v-if="player.id === gameStore.myPlayerId" class="badge bg-light text-dark ms-1">你</span>
-              </div>
-              <span class="badge bg-dark">{{ player.handCount }} 张</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 游戏信息 -->
-        <div class="card bg-dark text-white mt-3">
-          <div class="card-header">
-            <h5 class="mb-0">游戏信息</h5>
-          </div>
-          <div class="card-body">
-            <p class="mb-1"><strong>牌副数:</strong> {{ gameStore.config.deckCount }}</p>
-            <p class="mb-0"><strong>房间:</strong> {{ gameStore.roomId }}</p>
-          </div>
+          <div class="player-cards">{{ player.handCount }} 张</div>
         </div>
       </div>
 
       <!-- 中间：游戏桌面 -->
-      <div class="col-12 col-lg-6 col-md-4 mb-3 mb-md-0">
-        <div class="card bg-success text-white h-100">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">游戏桌面</h5>
-            <span v-if="gameStore.isMyTurn" class="badge bg-warning text-dark">轮到你了</span>
-            <span v-else class="badge bg-secondary">等待 {{ gameStore.currentPlayer?.name }}</span>
-          </div>
-          <div class="card-body d-flex flex-column justify-content-center align-items-center">
-            <!-- 上家出的牌 -->
-            <div v-if="gameStore.lastHand" class="text-center">
-              <p class="mb-2">上次出牌:</p>
-              <div class="d-flex justify-content-center gap-2 mb-3 flex-wrap">
-                <span
-                  v-for="(cardInfo, index) in lastHandDisplay"
-                  :key="index"
-                  class="card-display"
-                  :class="cardInfo.suit"
-                >
-                  {{ cardInfo.text }}
-                </span>
-              </div>
-              <p class="text-muted small">由 {{ gameStore.players.find(p => p.id === gameStore.lastPlayerId)?.name }} 出牌</p>
-            </div>
-            <p v-else class="text-muted">等待出牌...</p>
-          </div>
+      <div class="game-table">
+        <div class="table-info">
+          <span class="info-item">牌副数: {{ gameStore.config.deckCount }}</span>
+          <span class="info-item">房间: {{ gameStore.roomId?.slice(0, 8) }}...</span>
         </div>
+        
+        <!-- 上家出的牌 -->
+        <div v-if="gameStore.lastHand" class="last-played">
+          <p class="last-label">上次出牌</p>
+          <div class="played-cards">
+            <span
+              v-for="(cardInfo, index) in lastHandDisplay"
+              :key="index"
+              class="card-display"
+              :class="cardInfo.suit"
+            >
+              {{ cardInfo.text }}
+            </span>
+          </div>
+          <p class="last-player">由 {{ gameStore.players.find(p => p.id === gameStore.lastPlayerId)?.name }} 出牌</p>
+        </div>
+        <p v-else class="waiting-text">等待出牌...</p>
       </div>
 
-      <!-- 右侧：操作按钮 -->
-      <div class="col-12 col-lg-3 col-md-4">
-        <div class="card bg-dark text-white h-100">
-          <div class="card-header">
-            <h5 class="mb-0">操作</h5>
+      <!-- 底部：我的手牌和操作 -->
+      <div class="bottom-section">
+        <!-- 我的信息 -->
+        <div class="my-info">
+          <div class="my-avatar">
+            <span v-if="gameStore.isHost" class="host-badge">👑</span>
+            <span class="my-name">{{ gameStore.myPlayerName }}</span>
+            <span class="my-cards">{{ gameStore.myHand.length }} 张</span>
           </div>
-          <div class="card-body d-flex flex-column gap-2">
-            <button
-              class="btn btn-primary py-3"
-              @click="playSelectedCards"
-              :disabled="!gameStore.isMyTurn || selectedCards.length === 0"
-            >
-              出牌 ({{ selectedCards.length }})
-            </button>
-            <button
-              class="btn btn-secondary py-3"
-              @click="passTurn"
-              :disabled="!gameStore.canPass"
-            >
-              过牌
-            </button>
-            <button
-              v-if="gameStore.isHost && gameStore.gameState === 'ended'"
-              class="btn btn-warning py-3"
-              @click="gameStore.nextRound"
-            >
-              下一局
-            </button>
+          <div class="turn-indicator" :class="{ active: gameStore.isMyTurn }">
+            {{ gameStore.isMyTurn ? '轮到你了' : `等待 ${gameStore.currentPlayer?.name}` }}
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 底部：我的手牌 -->
-    <div class="row flex-shrink-0">
-      <div class="col-12">
-        <div class="card bg-secondary text-white">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">我的手牌 ({{ gameStore.myHand.length }})</h5>
-            <button class="btn btn-sm btn-outline-light" @click="selectedCards = []">
-              取消选择
-            </button>
-          </div>
-          <div class="card-body overflow-auto">
-            <div class="d-flex flex-wrap gap-2 justify-content-center">
-              <div
-                v-for="card in sortedHand"
-                :key="card.id"
-                class="playing-card"
-                :class="{
-                  'selected': isSelected(card),
-                  'red-heart-3': card.isRedHeart3,
-                  'hearts': card.suit === 'hearts',
-                  'diamonds': card.suit === 'diamonds',
-                  'clubs': card.suit === 'clubs',
-                  'spades': card.suit === 'spades',
-                }"
-                @click="toggleCardSelection(card)"
-              >
-                <div class="card-content">
-                  <span class="card-rank">{{ card.rank }}</span>
-                  <span class="card-suit">{{ SUIT_SYMBOLS[card.suit] }}</span>
-                </div>
+        <!-- 操作按钮 -->
+        <div class="action-buttons">
+          <button
+            class="btn-action btn-pass"
+            @click="passTurn"
+            :disabled="!gameStore.canPass"
+          >
+            过牌
+          </button>
+          <button
+            class="btn-action btn-play"
+            @click="playSelectedCards"
+            :disabled="!gameStore.isMyTurn || selectedCards.length === 0"
+          >
+            出牌 ({{ selectedCards.length }})
+          </button>
+          <button
+            v-if="gameStore.isHost && gameStore.gameState === 'ended'"
+            class="btn-action btn-next"
+            @click="gameStore.nextRound"
+          >
+            下一局
+          </button>
+        </div>
+
+        <!-- 我的手牌 -->
+        <div class="my-hand">
+          <div class="hand-cards">
+            <div
+              v-for="card in sortedHand"
+              :key="card.id"
+              class="playing-card"
+              :class="{
+                'selected': isSelected(card),
+                'red-heart-3': card.isRedHeart3,
+                'hearts': card.suit === 'hearts',
+                'diamonds': card.suit === 'diamonds',
+                'clubs': card.suit === 'clubs',
+                'spades': card.suit === 'spades',
+              }"
+              @click="toggleCardSelection(card)"
+            >
+              <div class="card-content">
+                <span class="card-rank">{{ card.rank }}</span>
+                <span class="card-suit">{{ SUIT_SYMBOLS[card.suit] }}</span>
               </div>
             </div>
           </div>
@@ -236,32 +226,284 @@ function passTurn() {
 </template>
 
 <style scoped>
-/* 桌面牌显示 */
+/* 游戏容器 */
+.game-container {
+  background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
+  overflow: hidden;
+}
+
+.game-layout {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  gap: 10px;
+}
+
+/* 顶部玩家 */
+.top-players {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px;
+}
+
+.player-card {
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 12px;
+  padding: 12px 20px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 150px;
+  border: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.player-card.current-turn {
+  border-color: #ffc107;
+  background: rgba(255, 193, 7, 0.3);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+  }
+}
+
+.player-avatar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.host-badge {
+  font-size: 1.2rem;
+}
+
+.player-name {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.player-cards {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+}
+
+/* 游戏桌面 */
+.game-table {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+}
+
+.table-info {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  display: flex;
+  gap: 20px;
+}
+
+.info-item {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 6px 12px;
+  border-radius: 15px;
+  color: white;
+  font-size: 0.85rem;
+}
+
+.last-played {
+  text-align: center;
+}
+
+.last-label {
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 15px;
+  font-size: 1rem;
+}
+
+.played-cards {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
 .card-display {
   background: white;
   color: black;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 10px 14px;
+  border-radius: 8px;
   font-weight: bold;
-  font-size: 1.1rem;
-  min-width: 50px;
+  font-size: 1.2rem;
+  min-width: 55px;
   text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .card-display.hearts,
 .card-display.diamonds {
-  color: #dc3545; /* 红色 */
+  color: #dc3545;
 }
 
 .card-display.clubs,
 .card-display.spades {
-  color: #212529; /* 黑色 */
+  color: #212529;
+}
+
+.last-player {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.waiting-text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.1rem;
+}
+
+/* 底部区域 */
+.bottom-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 15px;
+}
+
+.my-avatar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+
+.my-name {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.my-cards {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.95rem;
+}
+
+.turn-indicator {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 6px 16px;
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+}
+
+.turn-indicator.active {
+  background: #ffc107;
+  color: black;
+  font-weight: bold;
+  animation: glow 1.5s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px #ffc107;
+  }
+  50% {
+    box-shadow: 0 0 15px #ffc107;
+  }
+}
+
+/* 操作按钮 */
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 15px;
+}
+
+.btn-action {
+  padding: 10px 30px;
+  border: none;
+  border-radius: 25px;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-pass {
+  background: rgba(108, 117, 125, 0.9);
+  color: white;
+}
+
+.btn-pass:hover:not(:disabled) {
+  background: rgba(108, 117, 125, 1);
+}
+
+.btn-play {
+  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%);
+  color: black;
+}
+
+.btn-play:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.5);
+}
+
+.btn-next {
+  background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+  color: white;
+}
+
+.btn-next:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+/* 我的手牌 */
+.my-hand {
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 15px 15px 0 0;
+  padding: 12px;
+  min-height: 110px;
+}
+
+.hand-cards {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 /* 手牌样式 */
 .playing-card {
-  width: 50px;
-  height: 75px;
+  width: 55px;
+  height: 80px;
   background: white;
   border: 2px solid #333;
   border-radius: 8px;
@@ -273,24 +515,19 @@ function passTurn() {
   transition: all 0.2s;
   font-weight: bold;
   flex-shrink: 0;
-}
-
-@media (min-width: 768px) {
-  .playing-card {
-    width: 60px;
-    height: 90px;
-  }
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .playing-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transform: translateY(-8px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
 .playing-card.selected {
-  transform: translateY(-10px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-15px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
   border-color: #ffc107;
+  border-width: 3px;
 }
 
 .playing-card.red-heart-3 {
@@ -312,20 +549,16 @@ function passTurn() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .card-rank {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: bold;
 }
 
 .card-suit {
-  font-size: 1.5rem;
-}
-
-.badge {
-  font-size: 0.75rem;
+  font-size: 1.4rem;
 }
 
 /* 横屏提示 */
@@ -376,8 +609,32 @@ function passTurn() {
   pointer-events: none;
 }
 
-/* 游戏容器 */
-.game-container {
-  overflow: hidden;
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .top-players {
+    gap: 10px;
+    padding: 8px;
+  }
+
+  .player-card {
+    min-width: 120px;
+    padding: 10px 15px;
+  }
+
+  .playing-card {
+    width: 48px;
+    height: 70px;
+  }
+
+  .btn-action {
+    padding: 8px 20px;
+    font-size: 0.9rem;
+  }
+
+  .card-display {
+    padding: 8px 12px;
+    font-size: 1.1rem;
+    min-width: 48px;
+  }
 }
 </style>
