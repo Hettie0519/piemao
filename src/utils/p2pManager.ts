@@ -2,12 +2,32 @@ import Peer from 'peerjs';
 import type { GameMessage } from '../types/game';
 import { MessageType } from '../types/game';
 
-// 使用免费的 PeerJS 公共服务器
+// 使用免费的 PeerJS 公共服务器 + STUN/TURN 服务器
 const PEER_SERVER_CONFIG = {
   host: '0.peerjs.com',
   port: 443,
   path: '/',
   secure: true,
+  config: {
+    iceServers: [
+      // Google 公共 STUN 服务器
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      // 免费的公共 TURN 服务器（coturn）
+      {
+        urls: 'turn:numb.viagenie.ca',
+        credential: 'muazkh',
+        username: 'webrtc@live.com',
+      },
+      // 另一个免费 TURN 服务器
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject',
+      },
+    ],
+  },
 };
 
 /**
