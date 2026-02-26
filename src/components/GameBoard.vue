@@ -235,27 +235,27 @@ function passTurn() {
 .game-layout {
   display: flex;
   flex-direction: column;
-  padding: 10px;
-  gap: 10px;
+  padding: 5px;
+  gap: 5px;
 }
 
 /* 顶部玩家 */
 .top-players {
   display: flex;
   justify-content: center;
-  gap: 20px;
-  padding: 10px;
+  gap: 10px;
+  padding: 5px;
 }
 
 .player-card {
   background: rgba(0, 0, 0, 0.6);
-  border-radius: 12px;
-  padding: 12px 20px;
+  border-radius: 10px;
+  padding: 8px 12px;
   color: white;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 150px;
+  gap: 8px;
+  min-width: 100px;
   border: 2px solid transparent;
   transition: all 0.3s;
 }
@@ -282,48 +282,49 @@ function passTurn() {
 }
 
 .host-badge {
-  font-size: 1.2rem;
+  font-size: 1rem;
 }
 
 .player-name {
   font-weight: bold;
-  font-size: 1rem;
+  font-size: 0.85rem;
 }
 
 .player-cards {
   background: rgba(255, 255, 255, 0.2);
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.9rem;
+  padding: 3px 8px;
+  border-radius: 15px;
+  font-size: 0.8rem;
 }
 
 /* 游戏桌面 */
 .game-table {
   flex: 1;
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 20px;
+  border-radius: 15px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 10px;
   position: relative;
+  min-height: 120px;
 }
 
 .table-info {
   position: absolute;
-  top: 15px;
-  right: 20px;
+  top: 8px;
+  right: 10px;
   display: flex;
-  gap: 20px;
+  gap: 10px;
 }
 
 .info-item {
   background: rgba(0, 0, 0, 0.5);
-  padding: 6px 12px;
-  border-radius: 15px;
+  padding: 4px 8px;
+  border-radius: 12px;
   color: white;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
 }
 
 .last-played {
@@ -332,28 +333,28 @@ function passTurn() {
 
 .last-label {
   color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 15px;
-  font-size: 1rem;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
 }
 
 .played-cards {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 15px;
+  gap: 6px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
 .card-display {
   background: white;
   color: black;
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
   font-weight: bold;
-  font-size: 1.2rem;
-  min-width: 55px;
+  font-size: 1rem;
+  min-width: 40px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .card-display.hearts,
@@ -368,54 +369,54 @@ function passTurn() {
 
 .last-player {
   color: rgba(255, 255, 255, 0.7);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   margin: 0;
 }
 
 .waiting-text {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 1.1rem;
+  font-size: 0.95rem;
 }
 
 /* 底部区域 */
 .bottom-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
 .my-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 15px;
+  padding: 5px 10px;
 }
 
 .my-avatar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: white;
 }
 
 .my-name {
   font-weight: bold;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
 }
 
 .my-cards {
   background: rgba(255, 255, 255, 0.2);
-  padding: 5px 12px;
-  border-radius: 20px;
-  font-size: 0.95rem;
+  padding: 4px 10px;
+  border-radius: 15px;
+  font-size: 0.85rem;
 }
 
 .turn-indicator {
   background: rgba(0, 0, 0, 0.5);
-  padding: 6px 16px;
-  border-radius: 20px;
+  padding: 4px 12px;
+  border-radius: 15px;
   color: rgba(255, 255, 255, 0.7);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .turn-indicator.active {
@@ -438,16 +439,16 @@ function passTurn() {
 .action-buttons {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  padding: 0 15px;
+  gap: 8px;
+  padding: 0 10px;
 }
 
 .btn-action {
-  padding: 10px 30px;
+  padding: 8px 20px;
   border: none;
-  border-radius: 25px;
+  border-radius: 20px;
   font-weight: bold;
-  font-size: 1rem;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -488,25 +489,25 @@ function passTurn() {
 /* 我的手牌 */
 .my-hand {
   background: rgba(0, 0, 0, 0.5);
-  border-radius: 15px 15px 0 0;
-  padding: 12px;
-  min-height: 110px;
+  border-radius: 12px 12px 0 0;
+  padding: 8px 5px;
+  min-height: 95px;
 }
 
 .hand-cards {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 /* 手牌样式 */
 .playing-card {
-  width: 55px;
-  height: 80px;
+  width: 45px;
+  height: 68px;
   background: white;
   border: 2px solid #333;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -515,24 +516,24 @@ function passTurn() {
   transition: all 0.2s;
   font-weight: bold;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .playing-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-6px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .playing-card.selected {
-  transform: translateY(-15px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+  transform: translateY(-12px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
   border-color: #ffc107;
-  border-width: 3px;
+  border-width: 2px;
 }
 
 .playing-card.red-heart-3 {
   border-color: #ffc107;
-  border-width: 3px;
+  border-width: 2px;
 }
 
 .playing-card.hearts,
@@ -549,16 +550,16 @@ function passTurn() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
 }
 
 .card-rank {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: bold;
 }
 
 .card-suit {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
 }
 
 /* 横屏提示 */
@@ -612,29 +613,84 @@ function passTurn() {
 /* 响应式调整 */
 @media (max-width: 768px) {
   .top-players {
-    gap: 10px;
-    padding: 8px;
+    gap: 8px;
+    padding: 5px;
   }
 
   .player-card {
-    min-width: 120px;
-    padding: 10px 15px;
+    min-width: 90px;
+    padding: 6px 10px;
   }
 
   .playing-card {
-    width: 48px;
-    height: 70px;
+    width: 40px;
+    height: 62px;
   }
 
   .btn-action {
-    padding: 8px 20px;
-    font-size: 0.9rem;
+    padding: 6px 16px;
+    font-size: 0.85rem;
   }
 
   .card-display {
-    padding: 8px 12px;
-    font-size: 1.1rem;
-    min-width: 48px;
+    padding: 5px 8px;
+    font-size: 0.9rem;
+    min-width: 36px;
+  }
+
+  .my-hand {
+    padding: 6px 4px;
+    min-height: 85px;
+  }
+
+  .game-table {
+    padding: 8px;
+    min-height: 100px;
+  }
+}
+
+/* 超小屏幕适配 */
+@media (max-height: 400px) {
+  .game-layout {
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .top-players {
+    gap: 6px;
+    padding: 3px;
+  }
+
+  .player-card {
+    min-width: 80px;
+    padding: 5px 8px;
+  }
+
+  .playing-card {
+    width: 36px;
+    height: 56px;
+  }
+
+  .card-rank {
+    font-size: 0.9rem;
+  }
+
+  .card-suit {
+    font-size: 1rem;
+  }
+
+  .my-hand {
+    padding: 5px 3px;
+    min-height: 75px;
+  }
+
+  .action-buttons {
+    gap: 6px;
+  }
+
+  .btn-action {
+    padding: 5px 14px;
+    font-size: 0.8rem;
   }
 }
 </style>
