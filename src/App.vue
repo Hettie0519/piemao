@@ -13,6 +13,12 @@ const showWelcome = ref(true);
 const isInitializing = ref(false);
 
 onMounted(async () => {
+  // 禁用页面复制功能
+  document.addEventListener('copy', (e) => e.preventDefault());
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('selectstart', (e) => e.preventDefault());
+  document.addEventListener('cut', (e) => e.preventDefault());
+  
   // 从本地存储加载昵称
   const savedName = localStorage.getItem('piemao_nickname');
   if (savedName) {

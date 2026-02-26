@@ -910,17 +910,25 @@ export const useGameStore = defineStore('game', () => {
   function determineRPSWinner(): void {
     if (!isHost.value) return;
     
+    console.log('开始判断石头剪子布胜负');
+    console.log('rpsPlayers:', rpsPlayers.value);
+    console.log('rpsChoices:', rpsChoices.value);
+    console.log('players:', players.value);
+    
     const choices: Array<{ playerId: string; choice: RockPaperScissorsChoice }> = [];
     
     rpsPlayers.value.forEach(index => {
       const player = players.value[index];
       if (player) {
         const choice = rpsChoices.value.get(player.id);
+        console.log(`玩家 ${index} (${player.name}): ${choice}`);
         if (choice) {
           choices.push({ playerId: player.id, choice });
         }
       }
     });
+    
+    console.log('choices:', choices);
     
     // 简单的石头剪子布逻辑：如果有平局，重新开始
     let winnerIndex = -1;
@@ -954,10 +962,19 @@ export const useGameStore = defineStore('game', () => {
       return compareRPS(current.choice, prev.choice) > 0 ? current : prev;
     });
     
-    winnerIndex = rpsPlayers.value.findIndex(index => {
+    console.log('winner:', winner);
+    
+    // 在 rpsPlayers 数组中找到胜者的索引
+    const winnerRPSIndex = rpsPlayers.value.findIndex(index => {
       const player = players.value[index];
       return player && player.id === winner.playerId;
     });
+    
+    // 获取胜者在 players 数组中的实际索引
+    winnerIndex = rpsPlayers.value[winnerRPSIndex] ?? -1;
+    
+    console.log('winnerRPSIndex:', winnerRPSIndex);
+    console.log('winnerIndex:', winnerIndex);
     
     if (winnerIndex !== -1) {
       currentPlayerIndex.value = winnerIndex;

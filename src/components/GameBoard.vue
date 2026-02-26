@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '../stores/gameStore';
-import { sortCards, formatCard, SUIT_SYMBOLS } from '../utils/cardUtils';
 import type { Card } from '../types/game';
 import { GameState } from '../types/game';
 import RockPaperScissors from './RockPaperScissors.vue';
+import { sortCards } from '../utils/cardUtils';
 
 const gameStore = useGameStore();
 const selectedCards = ref<Card[]>([]);
+
+const SUIT_SYMBOLS = {
+  hearts: '♥',
+  diamonds: '♦',
+  clubs: '♣',
+  spades: '♠',
+};
+
+const myHand = computed(() => gameStore.myHand);
 
 onMounted(() => {
   // 空实现，不需要检测屏幕方向
@@ -99,17 +108,112 @@ const lastHandDisplay = computed(() => {
   });
 });
 
-function toggleCardSelection(card: Card) {
-  const index = selectedCards.value.findIndex(c => c.id === card.id);
-  if (index === -1) {
-    selectedCards.value.push(card);
-  } else {
-    selectedCards.value.splice(index, 1);
+function isSelected(card: Card) {
+  return selectedCards.value.some(c => c.id === card.id);
+}
+
+function formatCard(card: Card): string {
+  return `${card.rank}${SUIT_SYMBOLS[card.suit]}`;
+}
+
+// 拖动处理
+let isDragging = false;
+let dragStartCard: Card | null = null;
+let lastCard: Card | null = null;
+let hasMovedToOtherCard = false;
+let startCardWasSelected = false;
+
+function handleCardDragStart(card: Card, _event: MouseEvent | TouchEvent) {
+  isDragging = true;
+  dragStartCard = card;
+  lastCard = card;
+  hasMovedToOtherCard = false;
+  startCardWasSelected = isSelected(card);
+  
+  console.log('开始拖动牌:', card.id, '起始牌是否已选中:', startCardWasSelected);
+  
+  // 添加全局拖动事件监听
+  if (typeof window !== 'undefined') {
+    window.addEventListener('mousemove', handleCardDragMove);
+    window.addEventListener('mouseup', handleCardDragEnd);
+    window.addEventListener('touchmove', handleCardDragMove, { passive: false });
+    window.addEventListener('touchend', handleCardDragEnd);
   }
 }
 
-function isSelected(card: Card) {
-  return selectedCards.value.some(c => c.id === card.id);
+function handleCardDragMove(event: MouseEvent | TouchEvent) {
+  if (!isDragging) return;
+  
+  // 获取触摸或鼠标位置
+  const clientX = event instanceof MouseEvent ? event.clientX : (event.touches[0]?.clientX ?? 0);
+  const clientY = event instanceof MouseEvent ? event.clientY : (event.touches[0]?.clientY ?? 0);
+  
+  // 检查鼠标是否移动到其他牌上
+  const elements = document.elementsFromPoint(clientX, clientY);
+  let foundDifferentCard = false;
+  
+  for (const element of elements) {
+    const cardElement = element.closest('.hand-card');
+    if (cardElement) {
+      const cardId = cardElement.getAttribute('data-card-id');
+      if (cardId) {
+        const card = myHand.value.find((c: Card) => c.id === cardId);
+        if (card && card.id !== lastCard?.id && card.id !== dragStartCard?.id) {
+          foundDifferentCard = true;
+          hasMovedToOtherCard = true;
+          lastCard = card;
+          console.log('滑过新牌:', card.id);
+          
+          // 选中滑过的牌
+          if (!isSelected(card)) {
+            selectedCards.value.push(card);
+            console.log('选中:', card.id);
+          }
+          
+          // 如果起始牌未被选中，现在选中它
+          if (!isSelected(dragStartCard!)) {
+            selectedCards.value.push(dragStartCard!);
+            console.log('选中起始牌:', dragStartCard!.id);
+          }
+        }
+      }
+      break;
+    }
+  }
+  
+  // 只有滑到其他牌上才阻止默认行为
+  if (foundDifferentCard) {
+    event.preventDefault();
+  }
+}
+
+function handleCardDragEnd() {
+  console.log('拖动结束，是否移动到其他牌:', hasMovedToOtherCard, '起始牌是否已选中:', startCardWasSelected);
+  
+  // 如果没有移动到其他牌，这是单击，切换起始牌的选中状态
+  if (!hasMovedToOtherCard && dragStartCard) {
+    console.log('单击，切换选中');
+    const index = selectedCards.value.findIndex(c => c.id === dragStartCard!.id);
+    if (index === -1) {
+      selectedCards.value.push(dragStartCard!);
+    } else {
+      selectedCards.value.splice(index, 1);
+    }
+  }
+  
+  isDragging = false;
+  dragStartCard = null;
+  lastCard = null;
+  hasMovedToOtherCard = false;
+  startCardWasSelected = false;
+  
+  // 移除全局事件监听
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('mousemove', handleCardDragMove);
+    window.removeEventListener('mouseup', handleCardDragEnd);
+    window.removeEventListener('touchmove', handleCardDragMove);
+    window.removeEventListener('touchend', handleCardDragEnd);
+  }
 }
 
 function playSelectedCards() {
@@ -257,7 +361,9 @@ function isLineEnd(index: number) {
                 'clubs': card.suit === 'clubs',
                 'spades': card.suit === 'spades',
               }"
-              @click="toggleCardSelection(card)"
+              :data-card-id="card.id"
+              @mousedown="handleCardDragStart(card, $event)"
+              @touchstart="handleCardDragStart(card, $event)"
             >
               <div class="card-content">
                 <span class="card-rank">{{ card.rank }}</span>
@@ -594,10 +700,9 @@ function isLineEnd(index: number) {
   z-index: 1;
 }
 
-.hand-card:hover,
-.hand-card.selected {
-  z-index: 10;
-  transform: translateY(-0.8vh) scale(1.05);
+.hand-card:hover {
+  transform: translateY(-1vh);
+  z-index: 1;
 }
 
 /* 每行的最后一个牌不堆叠 */
@@ -616,9 +721,9 @@ function isLineEnd(index: number) {
   color: #000;
 }
 
-/* 选中状态 */
+/* 选中状态 - 保持悬停效果 */
 .hand-card.selected {
-  transform: translateY(-0.8vh) scale(1.05);
+  transform: translateY(-1vh);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
   border-color: #ffd700;
   border-width: 3px;
