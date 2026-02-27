@@ -221,16 +221,7 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
 }
 
 function handleCardDragEnd(event: MouseEvent | TouchEvent) {
-  // 如果没有移动到其他牌，这是单击，切换起始牌的选中状态
-  if (!hasMovedToOtherCard && dragStartCard) {
-    const index = selectedCards.value.findIndex(c => c.id === dragStartCard!.id);
-    if (index === -1) {
-      selectedCards.value.push(dragStartCard!);
-    } else {
-      selectedCards.value.splice(index, 1);
-    }
-  }
-  // 注意：如果移动到其他牌且起始牌已选中，起始牌已经在 handleCardDragMove 中被取消了选中
+  // 注意：单击处理已移到 handleCardClick 函数中
   
   isDragging = false;
   dragStartCard = null;
@@ -764,6 +755,7 @@ function isLineEnd(index: number) {
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
   border-color: #ffd700;
   border-width: 3px;
+  transition: all 0.2s ease;
 }
 
 /* 卡牌内容定位 */
@@ -884,6 +876,15 @@ function isLineEnd(index: number) {
     max-width: 65px;
     max-height: 90px;
     margin-right: -2.2vw;
+    transition: all 0.2s ease;
+  }
+  
+  .hand-card.selected {
+    transform: translateY(-1vh);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    border-color: #ffd700;
+    border-width: 3px;
+    transition: all 0.2s ease;
   }
   
   .card-rank {
