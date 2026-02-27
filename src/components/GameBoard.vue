@@ -30,23 +30,39 @@ onUnmounted(() => {
 
 const sortedHand = computed(() => sortCards(gameStore.myHand));
 
-// 其他玩家列表（排除自己）
+// 其他玩家列表（排除自己），按逆时针顺序排列
 const otherPlayers = computed(() => {
-  return gameStore.players.filter(p => p.id !== gameStore.myPlayerId);
+  const myIndex = gameStore.players.findIndex(p => p.id === gameStore.myPlayerId);
+  const allPlayers = gameStore.players;
+  const other = [];
+  
+  // 从当前玩家开始，按逆时针方向遍历其他玩家
+  for (let i = 1; i < allPlayers.length; i++) {
+    const index = (myIndex + i) % allPlayers.length;
+    other.push(allPlayers[index]);
+  }
+  
+  return other;
 });
 
-// 左侧玩家（上半部分）
+// 左侧玩家（上家，逆时针方向的后半部分）
 const leftPlayers = computed(() => {
   const players = otherPlayers.value;
   if (players.length === 0) return [];
-  return [players[0]];
+  // 将玩家均匀分配到左右两侧
+  const leftCount = Math.ceil(players.length / 2);
+  return players.slice(leftCount);
 });
 
-// 右侧玩家（下半部分）
+// 右侧玩家（下家，逆时针方向的前半部分，需要反转顺序让最远的在顶部）
 const rightPlayers = computed(() => {
   const players = otherPlayers.value;
-  if (players.length <= 1) return [];
-  return players.slice(1);
+  if (players.length === 0) return [];
+  // 将玩家均匀分配到左右两侧
+  const leftCount = Math.ceil(players.length / 2);
+  const rightPlayersList = players.slice(0, leftCount);
+  // 反转顺序，让最远的玩家在顶部
+  return rightPlayersList.reverse();
 });
 
 // 获取左侧玩家在原数组中的实际索引
@@ -205,7 +221,7 @@ function getChatBubblePosition(playerId: string) {
       transform: 'none'
     };
   } else if (relativeLeft < 50) {
-    // Left player
+    // Left player - 气泡位置基于 player-info 的顶部，不需要 translateY(-50%)
     return { 
       top: `${relativeTop}%`, 
       left: `calc(${relativeLeft}% + ${elementWidthPercent}% + 0.5vw)`,
@@ -214,7 +230,7 @@ function getChatBubblePosition(playerId: string) {
       transform: 'none'
     };
   } else {
-    // Right player
+    // Right player - 气泡位置基于 player-info 的顶部，不需要 translateY(-50%)
     return { 
       top: `${relativeTop}%`, 
       left: 'auto',
@@ -467,19 +483,22 @@ function isLineEnd(index: number) {
           </div>
         </div>
 
-        <!-- 左侧对手 -->
-        <div
-          v-for="(player, index) in leftPlayers"
-          :key="player!.id"
-          class="player-left"
-          :class="{ 'current-turn': getLeftPlayerIndex(index) === gameStore.currentPlayerIndex }"
-          :data-player-id="player!.id"
-        >
-          <div class="player-info">
-            <span v-if="player!.isHost" class="crown">👑</span>
-            <span class="player-number">{{ getLeftPlayerActualIndex(index) + 1 }}</span>
-            <span class="player-name">{{ player!.name }}</span>
-            <span class="player-hand-count">{{ player!.handCount }} 张</span>
+        <!-- 左侧对手容器 -->
+        <div class="left-players-container">
+          <!-- 左侧对手 -->
+          <div
+            v-for="(player, index) in leftPlayers"
+            :key="player!.id"
+            class="player-left"
+            :class="{ 'current-turn': getLeftPlayerIndex(index) === gameStore.currentPlayerIndex }"
+            :data-player-id="player!.id"
+          >
+            <div class="player-info">
+              <span v-if="player!.isHost" class="crown">👑</span>
+              <span class="player-number">{{ getLeftPlayerActualIndex(index) + 1 }}</span>
+              <span class="player-name">{{ player!.name }}</span>
+              <span class="player-hand-count">{{ player!.handCount }} 张</span>
+            </div>
           </div>
         </div>
 
@@ -508,19 +527,22 @@ function isLineEnd(index: number) {
           </div>
         </div>
 
-        <!-- 右侧对手 -->
-        <div
-          v-for="(player, index) in rightPlayers"
-          :key="player!.id"
-          class="player-right"
-          :class="{ 'current-turn': getRightPlayerIndex(index) === gameStore.currentPlayerIndex }"
-          :data-player-id="player!.id"
-        >
-          <div class="player-info">
-            <span v-if="player!.isHost" class="crown">👑</span>
-            <span class="player-number">{{ getRightPlayerActualIndex(index) + 1 }}</span>
-            <span class="player-name">{{ player!.name }}</span>
-            <span class="player-hand-count">{{ player!.handCount }} 张</span>
+        <!-- 右侧对手容器 -->
+        <div class="right-players-container">
+          <!-- 右侧对手 -->
+          <div
+            v-for="(player, index) in rightPlayers"
+            :key="player!.id"
+            class="player-right"
+            :class="{ 'current-turn': getRightPlayerIndex(index) === gameStore.currentPlayerIndex }"
+            :data-player-id="player!.id"
+          >
+            <div class="player-info">
+              <span v-if="player!.isHost" class="crown">👑</span>
+              <span class="player-number">{{ getRightPlayerActualIndex(index) + 1 }}</span>
+              <span class="player-name">{{ player!.name }}</span>
+              <span class="player-hand-count">{{ player!.handCount }} 张</span>
+            </div>
           </div>
         </div>
       </div>
@@ -686,9 +708,21 @@ function isLineEnd(index: number) {
 .game-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 10vw 1fr 10vw;
+  grid-template-columns: 12vw 1fr 12vw; /* 左右两侧固定宽度，中间自适应 */
+  grid-template-rows: 1fr;
   gap: 1vw;
   padding: 1vh;
+}
+
+/* 左侧玩家容器 */
+.left-players-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2vh;
+  height: 100%;
+  grid-column: 1; /* 占据第一列 */
 }
 
 /* 左侧玩家 */
@@ -697,6 +731,17 @@ function isLineEnd(index: number) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+/* 右侧玩家容器 */
+.right-players-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2vh;
+  height: 100%;
+  grid-column: 3; /* 占据第三列 */
 }
 
 /* 右侧玩家 */
@@ -753,6 +798,7 @@ function isLineEnd(index: number) {
   display: flex;
   align-items: center;
   justify-content: center;
+  grid-column: 2; /* 占据第二列 */
 }
 
 .play-area {
@@ -1201,7 +1247,6 @@ function isLineEnd(index: number) {
   top: 15%;
   max-width: 35vw;
   z-index: 100;
-  animation: bubblePop 0.3s ease;
 }
 
 @keyframes bubblePop {
@@ -1212,6 +1257,30 @@ function isLineEnd(index: number) {
   100% {
     opacity: 1;
     transform: scale(1) translateY(-50%);
+  }
+}
+
+/* 左侧对手气泡动画 - 不使用 translateY(-50%) */
+@keyframes bubblePopLeft {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 右侧对手气泡动画 - 不使用 translateY(-50%) */
+@keyframes bubblePopRight {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }
 
@@ -1260,6 +1329,7 @@ function isLineEnd(index: number) {
 /* 我的聊天气泡 */
 .chat-bubble-my {
   position: absolute;
+  animation: bubblePop 0.3s ease;
 }
 
 .chat-bubble-arrow-my-bottom {
@@ -1269,6 +1339,7 @@ function isLineEnd(index: number) {
 /* 左侧对手聊天气泡 */
 .chat-bubble-left {
   position: absolute;
+  animation: bubblePopLeft 0.3s ease;
 }
 
 .chat-bubble-arrow-left {
@@ -1286,6 +1357,7 @@ function isLineEnd(index: number) {
 /* 右侧对手聊天气泡 */
 .chat-bubble-right {
   position: absolute;
+  animation: bubblePopRight 0.3s ease;
 }
 
 .chat-bubble-right .chat-bubble-arrow {
