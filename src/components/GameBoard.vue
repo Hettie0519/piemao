@@ -124,7 +124,11 @@ let hasMovedToOtherCard = false;
 let startCardWasSelected = false;
 let hasDragged = false; // 新增：跟踪是否发生过拖动
 
-function handleCardDragStart(card: Card, _event: MouseEvent | TouchEvent) {
+function handleCardDragStart(card: Card, event: MouseEvent | TouchEvent) {
+  // 阻止事件冒泡和默认行为
+  event.stopPropagation();
+  event.preventDefault();
+  
   isDragging = true;
   dragStartCard = card;
   lastCard = card;
@@ -141,17 +145,6 @@ function handleCardDragStart(card: Card, _event: MouseEvent | TouchEvent) {
   }
 }
 
-function handleCardClick(card: Card) {
-  // 只在未拖动的情况下处理点击
-  if (!hasDragged) {
-    const index = selectedCards.value.findIndex(c => c.id === card.id);
-    if (index === -1) {
-      selectedCards.value.push(card);
-    } else {
-      selectedCards.value.splice(index, 1);
-    }
-  }
-}
 
 function handleCardDragMove(event: MouseEvent | TouchEvent) {
   if (!isDragging) return;
@@ -224,14 +217,29 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
 }
 
 function handleCardDragEnd(event: MouseEvent | TouchEvent) {
-  // 注意：单击处理已移到 handleCardClick 函数中
+  // 阻止事件冒泡和默认行为
+  event.stopPropagation();
+  event.preventDefault();
+  
+  // 如果没有移动到其他牌，这是单击，切换起始牌的选中状态
+  const wasDragging = hasMovedToOtherCard || hasDragged;
+  
+  if (!wasDragging && dragStartCard) {
+    const index = selectedCards.value.findIndex(c => c.id === dragStartCard!.id);
+    if (index === -1) {
+      selectedCards.value.push(dragStartCard!);
+    } else {
+      selectedCards.value.splice(index, 1);
+    }
+  }
+  // 注意：如果移动到其他牌且起始牌已选中，起始牌已经在 handleCardDragMove 中被取消了选中
   
   isDragging = false;
   dragStartCard = null;
   lastCard = null;
   hasMovedToOtherCard = false;
   startCardWasSelected = false;
-  // 不重置 hasDragged，让它在下一次拖动开始时重置
+  hasDragged = false; // 重置拖动标记
   
   // 移除全局事件监听
   if (typeof window !== 'undefined') {
@@ -239,11 +247,6 @@ function handleCardDragEnd(event: MouseEvent | TouchEvent) {
     window.removeEventListener('mouseup', handleCardDragEnd);
     window.removeEventListener('touchmove', handleCardDragMove);
     window.removeEventListener('touchend', handleCardDragEnd);
-  }
-  
-  // 只在移动到其他牌时阻止默认行为，单击时不阻止
-  if (hasMovedToOtherCard) {
-    event.preventDefault();
   }
 }
 
@@ -395,7 +398,6 @@ function isLineEnd(index: number) {
               :data-card-id="card.id"
               @mousedown="handleCardDragStart(card, $event)"
               @touchstart="handleCardDragStart(card, $event)"
-              @click="handleCardClick(card)"
             >
               <div class="card-content">
                 <span class="card-rank">{{ card.rank }}</span>
@@ -742,6 +744,13 @@ function isLineEnd(index: number) {
   margin-right: 0;
 }
 
+/* 禁用移动端的悬停效果 */
+@media (hover: none) and (pointer: coarse) {
+  .hand-card:hover {
+    transform: none;
+  }
+}
+
 /* 花色颜色 */
 .hand-card.hearts,
 .hand-card.diamonds {
@@ -844,7 +853,7 @@ function isLineEnd(index: number) {
 }
 
 /* 移动端优化 */
-@media (max-width: 768px) {
+@media (max-width: 768px) and (orientation: portrait) {
   .top-bar {
     height: 4vh;
     padding: 0 3vw;
@@ -897,6 +906,63 @@ function isLineEnd(index: number) {
   
   .card-suit {
     font-size: 1.8vmin;
+  }
+}
+
+/* 移动端横屏优化 */
+@media (max-width: 768px) and (orientation: landscape) {
+  .top-bar {
+    height: 6vh;
+    padding: 0 2vw;
+    min-height: 35px;
+  }
+  
+  .game-title h1 {
+    font-size: 1.5vmin;
+  }
+  
+  .deck-info {
+    font-size: 1.0vmin;
+  }
+  
+  .bottom-area {
+    height: 50vh;
+    padding: 0.3vh 1vw;
+    gap: 0.3vh;
+  }
+  
+  .btn-pass,
+  .btn-play,
+  .btn-next {
+    padding: 0.8vh 1.2vw;
+    font-size: 1.5vmin;
+  }
+  
+  .hand-card {
+    width: 5vw;
+    height: 7vh;
+    min-width: 40px;
+    min-height: 55px;
+    max-width: 55px;
+    max-height: 80px;
+    margin-right: -2vw;
+    transition: all 0.2s ease;
+  }
+  
+  .hand-card.selected {
+    transform: translateY(-0.8vh);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    border-color: #ffd700;
+    border-width: 2px;
+    transition: all 0.2s ease;
+  }
+  
+  .card-rank {
+    font-size: 1.3vmin;
+  }
+  
+  .card-suit {
+    font-size: 1.5vmin;
   }
 }
 </style>
