@@ -173,6 +173,7 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
         if (card && card.id !== lastCard?.id && card.id !== dragStartCard?.id) {
           foundDifferentCard = true;
           hasMovedToOtherCard = true;
+          hasDragged = true; // 标记发生了拖动
           lastCard = card;
           
           // 检查起始牌是否在选中列表中（在拖动开始时的状态）
