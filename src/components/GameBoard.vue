@@ -130,14 +130,24 @@ function handleCardDragStart(card: Card, _event: MouseEvent | TouchEvent) {
   hasMovedToOtherCard = false;
   startCardWasSelected = isSelected(card);
   
-  console.log('开始拖动牌:', card.id, '起始牌是否已选中:', startCardWasSelected);
-  
   // 添加全局拖动事件监听
   if (typeof window !== 'undefined') {
     window.addEventListener('mousemove', handleCardDragMove);
     window.addEventListener('mouseup', handleCardDragEnd);
     window.addEventListener('touchmove', handleCardDragMove, { passive: false });
     window.addEventListener('touchend', handleCardDragEnd);
+  }
+}
+
+function handleCardClick(card: Card) {
+  // 只在未拖动的情况下处理点击
+  if (!hasMovedToOtherCard) {
+    const index = selectedCards.value.findIndex(c => c.id === card.id);
+    if (index === -1) {
+      selectedCards.value.push(card);
+    } else {
+      selectedCards.value.splice(index, 1);
+    }
   }
 }
 
@@ -162,7 +172,6 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
           foundDifferentCard = true;
           hasMovedToOtherCard = true;
           lastCard = card;
-          console.log('滑过新牌:', card.id);
           
           // 检查起始牌是否在选中列表中（在拖动开始时的状态）
           const startCardInSelected = startCardWasSelected;
@@ -177,7 +186,6 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
               const startIndex = selectedCards.value.findIndex(c => c.id === dragStartCard!.id);
               if (startIndex !== -1) {
                 selectedCards.value.splice(startIndex, 1);
-                console.log('取消选中起始牌:', dragStartCard!.id);
               }
             }
             
@@ -186,7 +194,6 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
               const index = selectedCards.value.findIndex(c => c.id === card.id);
               if (index !== -1) {
                 selectedCards.value.splice(index, 1);
-                console.log('取消选中:', card.id);
               }
             }
           } else {
@@ -194,13 +201,11 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
             // 如果是第一次滑过其他牌，先选中起始牌
             if (!isSelected(dragStartCard!)) {
               selectedCards.value.push(dragStartCard!);
-              console.log('选中起始牌:', dragStartCard!.id);
             }
             
             // 选中滑过的牌
             if (!isSelected(card)) {
               selectedCards.value.push(card);
-              console.log('选中:', card.id);
             }
           }
         }
@@ -216,18 +221,13 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
 }
 
 function handleCardDragEnd(event: MouseEvent | TouchEvent) {
-  console.log('拖动结束，是否移动到其他牌:', hasMovedToOtherCard, '起始牌是否已选中:', startCardWasSelected);
-  
   // 如果没有移动到其他牌，这是单击，切换起始牌的选中状态
   if (!hasMovedToOtherCard && dragStartCard) {
-    console.log('单击，切换选中');
     const index = selectedCards.value.findIndex(c => c.id === dragStartCard!.id);
     if (index === -1) {
       selectedCards.value.push(dragStartCard!);
-      console.log('单击选中牌:', dragStartCard!.id);
     } else {
       selectedCards.value.splice(index, 1);
-      console.log('单击取消选中牌:', dragStartCard!.id);
     }
   }
   // 注意：如果移动到其他牌且起始牌已选中，起始牌已经在 handleCardDragMove 中被取消了选中
@@ -400,6 +400,7 @@ function isLineEnd(index: number) {
               :data-card-id="card.id"
               @mousedown="handleCardDragStart(card, $event)"
               @touchstart="handleCardDragStart(card, $event)"
+              @click="handleCardClick(card)"
             >
               <div class="card-content">
                 <span class="card-rank">{{ card.rank }}</span>
