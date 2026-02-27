@@ -49,6 +49,15 @@ export interface GameConfig {
   minSisterPair: number;
 }
 
+// 聊天消息
+export interface ChatMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  message: string;
+  timestamp: number;
+}
+
 // 游戏状态
 export enum GameState {
   LOBBY = 'lobby',        // 大厅等待中
@@ -77,6 +86,7 @@ export enum MessageType {
   PLAY_HAND = 'play_hand',
   PASS = 'pass',
   RPS_CHOICE = 'rps_choice', // 石头剪子布选择
+  CHAT_MESSAGE = 'chat_message', // 聊天消息
   
   // 状态同步
   STATE_SYNC = 'state_sync',

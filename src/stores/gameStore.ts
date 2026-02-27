@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Card, Player, GameConfig, GameMessage, Hand } from '../types/game';
+import type { Card, Player, GameConfig, GameMessage, Hand, ChatMessage } from '../types/game';
 import { GameState, MessageType, RockPaperScissorsChoice } from '../types/game';
 import { p2pManager } from '../utils/p2pManager';
 import { dealGame, findRedHeart3Holder, findAllRedHeart3Holders, generateSeed } from '../utils/dealer';
@@ -40,6 +40,9 @@ export const useGameStore = defineStore('game', () => {
   const rpsPlayers = ref<number[]>([]); // 需要进行石头剪子布的玩家索引
   const rpsChoices = ref<Map<string, RockPaperScissorsChoice>>(new Map()); // 玩家的选择
   const myRPSChoice = ref<RockPaperScissorsChoice | null>(null);
+  
+  // 聊天消息
+  const chatMessages = ref<ChatMessage[]>([]);
   
   // 计算属性
   const myPlayer = computed(() => {
@@ -749,6 +752,7 @@ export const useGameStore = defineStore('game', () => {
     p2pManager.onMessage(MessageType.JOIN_ROOM, handlePlayerJoin);
     p2pManager.onMessage(MessageType.LEAVE_ROOM, handlePlayerLeave);
     p2pManager.onMessage(MessageType.RPS_CHOICE, handleRPSChoice);
+    p2pManager.onMessage(MessageType.CHAT_MESSAGE, handleChatMessage);
     
     // 处理昵称更新（请求或广播）
     p2pManager.onMessage(MessageType.UPDATE_PLAYER_NAME, (message: GameMessage) => {
@@ -1013,6 +1017,58 @@ export const useGameStore = defineStore('game', () => {
     return -1;
   }
   
+  /**
+   * 发送聊天消息
+   */
+  function sendChatMessage(message: string): void {
+    console.log('发送聊天消息:', message, '玩家ID:', myPlayerId.value);
+    
+    // 删除该玩家之前的消息
+    chatMessages.value = chatMessages.value.filter(m => m.playerId !== myPlayerId.value);
+    
+    const chatMessage: ChatMessage = {
+      id: `${myPlayerId.value}_${Date.now()}`,
+      playerId: myPlayerId.value,
+      playerName: myPlayerName.value,
+      message,
+      timestamp: Date.now(),
+    };
+    
+    // 添加新消息
+    chatMessages.value.push(chatMessage);
+    
+    console.log('本地消息列表:', chatMessages.value);
+    
+    // 广播给所有玩家
+    const gameMessage: GameMessage = {
+      type: MessageType.CHAT_MESSAGE,
+      timestamp: Date.now(),
+      senderId: myPlayerId.value,
+      payload: {
+        chatMessage,
+      },
+    };
+    
+    const broadcastResult = p2pManager.broadcast(gameMessage);
+    console.log('广播结果:', broadcastResult);
+  }
+  
+  /**
+   * 处理接收到的聊天消息
+   */
+  function handleChatMessage(message: GameMessage): void {
+    console.log('接收到聊天消息:', message);
+    const { chatMessage } = message.payload;
+    if (chatMessage) {
+      console.log('聊天消息内容:', chatMessage);
+      // 删除该发送者之前的消息
+      chatMessages.value = chatMessages.value.filter(m => m.playerId !== chatMessage.playerId);
+      // 添加新消息
+      chatMessages.value.push(chatMessage);
+      console.log('更新后的消息列表:', chatMessages.value);
+    }
+  }
+  
   return {
     // 状态
     myPlayerId,
@@ -1031,6 +1087,7 @@ export const useGameStore = defineStore('game', () => {
     rpsPlayers,
     rpsChoices,
     myRPSChoice,
+    chatMessages,
     
     // 计算属性
     myPlayer,
@@ -1045,6 +1102,8 @@ export const useGameStore = defineStore('game', () => {
     startGame,
     playHand,
     pass,
+    sendChatMessage,
+    handleChatMessage,
     nextRound,
     submitRPSChoice,
     broadcastPlayerNameUpdate,

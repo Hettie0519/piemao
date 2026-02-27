@@ -258,12 +258,25 @@ export class P2PManager {
    * 广播消息到所有连接的玩家
    */
   broadcast(message: GameMessage): boolean {
+    console.log('P2P: Broadcasting message to all connections');
+    console.log('P2P: Total connections:', this.connections.size);
+    console.log('P2P: Connected player IDs:', Array.from(this.connections.keys()));
+    
     let success = true;
-    for (const [playerId, _conn] of this.connections.entries()) {
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const [playerId, conn] of this.connections.entries()) {
+      console.log(`P2P: Sending to ${playerId}, connection state:`, conn.open ? 'open' : 'closed');
       if (!this.sendTo(playerId, message)) {
         success = false;
+        failCount++;
+      } else {
+        successCount++;
       }
     }
+    
+    console.log(`P2P: Broadcast complete - Success: ${successCount}, Fail: ${failCount}`);
     return success;
   }
 

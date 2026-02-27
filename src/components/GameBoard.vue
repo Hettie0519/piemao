@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import type { Card } from '../types/game';
 import { GameState } from '../types/game';
@@ -23,7 +23,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // 空实现
+  // 清除所有聊天气泡计时器
+  chatBubbleTimers.value.forEach(timer => clearTimeout(timer));
+  chatBubbleTimers.value.clear();
 });
 
 const sortedHand = computed(() => sortCards(gameStore.myHand));
@@ -123,6 +125,126 @@ let lastCard: Card | null = null;
 let hasMovedToOtherCard = false;
 let startCardWasSelected = false;
 let hasDragged = false; // 新增：跟踪是否发生过拖动
+
+// 快捷发言
+const showQuickChat = ref(false);
+const quickChatMessages = ['日你', '扳机','6666','秀了','牛逼牛逼','有石粒','么石粒','透', '有车呀么', '么有', '有了'];
+
+// 聊天气泡显示计时器
+const chatBubbleTimers = ref<Map<string, number>>(new Map());
+
+// 计算聊天气泡的位置
+function getChatBubblePosition(playerId: string) {
+  // 找到对应的玩家元素
+  const playerElement = document.querySelector(`[data-player-id="${playerId}"]`);
+  if (!playerElement) {
+    // 如果找不到元素，返回默认位置
+    if (playerId === gameStore.myPlayerId) {
+      return { top: 'auto', bottom: '42vh', left: '50%', right: 'auto', transform: 'translateX(-50%)' };
+    }
+    return { top: '35%', left: '10vw', right: 'auto', bottom: 'auto', transform: 'none' };
+  }
+  
+  const rect = playerElement.getBoundingClientRect();
+  const containerRect = document.querySelector('.game-container')?.getBoundingClientRect();
+  
+  if (!containerRect) {
+    return { top: '35%', left: '10vw', right: 'auto', bottom: 'auto', transform: 'none' };
+  }
+  
+  // 计算相对于容器的位置
+  const relativeTop = ((rect.top - containerRect.top) / containerRect.height) * 100;
+  const relativeLeft = ((rect.left - containerRect.left) / containerRect.width) * 100;
+  const relativeRight = 100 - relativeLeft;
+  
+  // 判断是左侧、右侧还是底部玩家
+  if (relativeTop > 60) {
+    // 底部玩家（我）
+    return { 
+      top: 'auto', 
+      bottom: `calc(100% - ${relativeTop}% - 2vh)`, 
+      left: `${relativeLeft}%`,
+      right: 'auto',
+      transform: 'translateX(-50%)'
+    };
+  } else if (relativeLeft < 50) {
+    // 左侧玩家
+    return { 
+      top: `${relativeTop}%`, 
+      left: `calc(${relativeLeft}% + 6vw)`,
+      right: 'auto',
+      bottom: 'auto',
+      transform: 'none'
+    };
+  } else {
+    // 右侧玩家
+    return { 
+      top: `${relativeTop}%`, 
+      left: 'auto',
+      right: `calc(${relativeRight}% + 6vw)`,
+      bottom: 'auto',
+      transform: 'none'
+    };
+  }
+}
+
+// 获取气泡的CSS类
+function getChatBubbleClass(playerId: string) {
+  if (playerId === gameStore.myPlayerId) return 'chat-bubble-my';
+  
+  const playerElement = document.querySelector(`[data-player-id="${playerId}"]`);
+  if (!playerElement) return '';
+  
+  const rect = playerElement.getBoundingClientRect();
+  const containerRect = document.querySelector('.game-container')?.getBoundingClientRect();
+  
+  if (!containerRect) return '';
+  
+  const relativeLeft = ((rect.left - containerRect.left) / containerRect.width) * 100;
+  
+  if (relativeLeft < 50) return 'chat-bubble-left';
+  return 'chat-bubble-right';
+}
+
+// 获取箭头的CSS类
+function getChatBubbleArrowClass(playerId: string) {
+  if (playerId === gameStore.myPlayerId) return 'chat-bubble-arrow-my-bottom';
+  
+  const playerElement = document.querySelector(`[data-player-id="${playerId}"]`);
+  if (!playerElement) return '';
+  
+  const rect = playerElement.getBoundingClientRect();
+  const containerRect = document.querySelector('.game-container')?.getBoundingClientRect();
+  
+  if (!containerRect) return '';
+  
+  const relativeLeft = ((rect.left - containerRect.left) / containerRect.width) * 100;
+  
+  if (relativeLeft < 50) return 'chat-bubble-arrow-left';
+  return 'chat-bubble-arrow-right';
+}
+
+// 监听聊天消息，设置自动消失计时器
+watch(() => gameStore.chatMessages, (newMessages) => {
+  // 清除所有旧的计时器
+  chatBubbleTimers.value.forEach(timer => clearTimeout(timer));
+  chatBubbleTimers.value.clear();
+  
+  // 为每条消息设置1秒后消失的计时器
+  newMessages.forEach((msg: any) => {
+    const timer = setTimeout(() => {
+      // 从消息列表中移除该消息
+      gameStore.chatMessages = gameStore.chatMessages.filter((m: any) => m.id !== msg.id);
+    }, 1000); // 1秒后消失
+    
+    chatBubbleTimers.value.set(msg.id, timer);
+  });
+}, { deep: true });
+
+function sendQuickChat(message: string) {
+  gameStore.sendChatMessage(message);
+  console.log('发送快捷消息:', message);
+}
 
 function handleCardDragStart(card: Card, event: MouseEvent | TouchEvent) {
   // 阻止事件冒泡和默认行为
@@ -289,12 +411,29 @@ function isLineEnd(index: number) {
 
       <!-- 游戏主区域 -->
       <div class="game-main">
+        <!-- 聊天消息气泡显示区域 -->
+        <div class="chat-bubbles-container">
+          <div
+            v-for="msg in gameStore.chatMessages"
+            :key="msg.id"
+            class="chat-bubble"
+            :class="getChatBubbleClass(msg.playerId)"
+            :style="getChatBubblePosition(msg.playerId)"
+          >
+            <div class="chat-bubble-content">
+              <span class="chat-bubble-text">{{ msg.message }}</span>
+            </div>
+            <div class="chat-bubble-arrow" :class="getChatBubbleArrowClass(msg.playerId)"></div>
+          </div>
+        </div>
+
         <!-- 左侧对手 -->
         <div
           v-for="(player, index) in leftPlayers"
           :key="player!.id"
           class="player-left"
           :class="{ 'current-turn': getLeftPlayerIndex(index) === gameStore.currentPlayerIndex }"
+          :data-player-id="player!.id"
         >
           <div class="player-info">
             <span v-if="player!.isHost" class="crown">👑</span>
@@ -335,6 +474,7 @@ function isLineEnd(index: number) {
           :key="player!.id"
           class="player-right"
           :class="{ 'current-turn': getRightPlayerIndex(index) === gameStore.currentPlayerIndex }"
+          :data-player-id="player!.id"
         >
           <div class="player-info">
             <span v-if="player!.isHost" class="crown">👑</span>
@@ -377,6 +517,30 @@ function isLineEnd(index: number) {
           >
             下一局
           </button>
+          <button
+            class="btn-chat"
+            @click="showQuickChat = !showQuickChat"
+          >
+            快捷发言
+          </button>
+        </div>
+
+        <!-- 快捷发言列表 -->
+        <div v-if="showQuickChat" class="quick-chat-panel">
+          <div class="quick-chat-header">
+            <span>快捷发言</span>
+            <span class="close-btn" @click="showQuickChat = false">×</span>
+          </div>
+          <div class="quick-chat-messages">
+            <div
+              v-for="message in quickChatMessages"
+              :key="message"
+              class="quick-chat-item"
+              @click="sendQuickChat(message)"
+            >
+              {{ message }}
+            </div>
+          </div>
         </div>
 
         <!-- 手牌区 -->
@@ -829,6 +993,243 @@ function isLineEnd(index: number) {
 
 .btn-clear:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* 快捷发言按钮 */
+.btn-chat {
+  padding: 0.8vh 1.5vw;
+  background: #28a745;
+  color: #fff;
+  border: 1px solid #34ce57;
+  border-radius: 1vh;
+  font-size: 1.3vmin;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5vw;
+}
+
+.btn-chat:hover {
+  background: #34ce57;
+  transform: scale(1.05);
+}
+
+/* 快捷发言面板 */
+.quick-chat-panel {
+  position: fixed;
+  right: 2vw;
+  bottom: 15vh;
+  width: 30vw;
+  max-width: 300px;
+  background: linear-gradient(135deg, rgba(26, 71, 42, 0.95) 0%, rgba(45, 90, 61, 0.95) 100%);
+  border: 2px solid #28a745;
+  border-radius: 12px;
+  z-index: 1000;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+}
+
+.quick-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2vh 1.5vw;
+  background: rgba(40, 167, 69, 0.3);
+  border-radius: 10px 10px 0 0;
+  border-bottom: 1px solid #28a745;
+}
+
+.quick-chat-header span {
+  color: #fff;
+  font-size: 1.4vmin;
+  font-weight: bold;
+}
+
+.close-btn {
+  color: #fff;
+  font-size: 2vmin;
+  cursor: pointer;
+  padding: 0 0.5vw;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  color: #34ce57;
+  transform: scale(1.2);
+}
+
+.quick-chat-messages {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 1vh;
+}
+
+.quick-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.quick-chat-messages::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.quick-chat-messages::-webkit-scrollbar-thumb {
+  background: #28a745;
+  border-radius: 3px;
+}
+
+.quick-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #34ce57;
+}
+
+.quick-chat-item {
+  padding: 1.2vh 1.5vw;
+  background: rgba(40, 167, 69, 0.15);
+  color: #fff;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 8px;
+  font-size: 1.3vmin;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 0.8vh;
+}
+
+.quick-chat-item:last-child {
+  margin-bottom: 0;
+}
+
+.quick-chat-item:hover {
+  background: rgba(40, 167, 69, 0.3);
+  border-color: #34ce57;
+  transform: translateX(-4px);
+}
+
+.quick-chat-item:active {
+  transform: translateX(-2px) scale(0.98);
+}
+
+/* 聊天消息气泡显示 */
+.chat-bubbles-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.chat-bubble {
+  position: absolute;
+  left: 12vw;
+  top: 15%;
+  max-width: 35vw;
+  z-index: 100;
+  animation: bubblePop 0.3s ease;
+}
+
+@keyframes bubblePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes bubbleFadeOut {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(-10px);
+  }
+}
+
+.chat-bubble-content {
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  padding: 1.5vh 2vw;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.chat-bubble-text {
+  color: #333;
+  font-size: 1.8vmin;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.chat-bubble-arrow {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 12px solid rgba(255, 255, 255, 0.95);
+}
+
+/* 我的聊天气泡 */
+.chat-bubble-my {
+  position: absolute;
+}
+
+.chat-bubble-arrow-my-bottom {
+  left: 50%;
+  top: auto;
+  bottom: -10px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 12px solid rgba(255, 255, 255, 0.95);
+  border-bottom: none;
+}
+
+/* 左侧对手聊天气泡 */
+.chat-bubble-left {
+  position: absolute;
+}
+
+.chat-bubble-arrow-left {
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 12px solid rgba(255, 255, 255, 0.95);
+  border-left: none;
+}
+
+/* 右侧对手聊天气泡 */
+.chat-bubble-right {
+  position: absolute;
+}
+
+.chat-bubble-right .chat-bubble-arrow {
+  left: auto;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 12px solid rgba(255, 255, 255, 0.95);
+  border-right: none;
 }
 
 /* 桌面端优化 */
