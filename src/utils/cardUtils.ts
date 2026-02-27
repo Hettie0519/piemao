@@ -211,23 +211,17 @@ export function validateHand(cards: Card[], minStraight: number = 3, minSisterPa
   
   // 炸弹（3张同点）
   if (isBomb(cards)) {
-    // 检查是否为起子（2张4压制3张）
-    const isQiZi4 = cards.every(c => c.rank === '4');
-    return { valid: true, type: HandType.BOMB, isQiZi: isQiZi4 };
+    return { valid: true, type: HandType.BOMB, isQiZi: false };
   }
   
   // 轰雷（4张同点）
   if (isThunder(cards)) {
-    // 检查是否为起子（3张4压制4张）
-    const isQiZi4 = cards.every(c => c.rank === '4');
-    return { valid: true, type: HandType.THUNDER, isQiZi: isQiZi4 };
+    return { valid: true, type: HandType.THUNDER, isQiZi: false };
   }
   
   // 多张同点（5张及以上）
   if (isMulti(cards)) {
-    // 检查是否为起子（N张4压制N+1张其他牌）
-    const isQiZi4 = cards.every(c => c.rank === '4');
-    return { valid: true, type: HandType.MULTI, isQiZi: isQiZi4 };
+    return { valid: true, type: HandType.MULTI, isQiZi: false };
   }
   
   return { valid: false, error: '无效的牌型' };
@@ -308,12 +302,18 @@ export function compareHands(hand1: Hand, hand2: Hand | null): ComparisonResult 
   if (isHand1Special && isHand2Special) {
     // 同类型比较
     if (hand1.type === hand2.type) {
+      console.log('同类型特殊牌型比较:', hand1.type, hand1.rank, 'vs', hand2.rank);
+      console.log('RANK_VALUES:', RANK_VALUES[hand1.rank], 'vs', RANK_VALUES[hand2.rank]);
+      
       if (hand1.count !== hand2.count) {
+        console.log('张数不同，无法管住');
         return ComparisonResult.INVALID;
       }
       if (RANK_VALUES[hand1.rank] > RANK_VALUES[hand2.rank]) {
+        console.log('点数更大，可以管住');
         return ComparisonResult.WIN;
       }
+      console.log('点数更小，无法管住');
       return ComparisonResult.LOSE;
     }
     
