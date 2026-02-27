@@ -690,7 +690,7 @@ function isLineEnd(index: number) {
 }
 
 .game-title h1 {
-  font-size: 2vmin;
+  font-size: 2.8vmin;
   font-weight: 700;
   color: #fff;
   margin: 0;
@@ -699,7 +699,7 @@ function isLineEnd(index: number) {
 }
 
 .deck-info {
-  font-size: 1.3vmin;
+  font-size: 2vmin;
   color: rgba(255, 255, 255, 0.8);
   white-space: nowrap;
 }
@@ -708,10 +708,11 @@ function isLineEnd(index: number) {
 .game-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 12vw 1fr 12vw; /* 左右两侧固定宽度，中间自适应 */
+  grid-template-columns: 9vw 1fr 9vw; /* 进一步减小左右两侧宽度 */
   grid-template-rows: 1fr;
-  gap: 1vw;
-  padding: 1vh;
+  gap: 0.3vw;
+  padding: 0.3vh 0.3vh 0.1vh 0.3vh; /* 减小底部内边距 */
+  margin-bottom: 0; /* 确保没有底部外边距 */
 }
 
 /* 左侧玩家容器 */
@@ -770,19 +771,19 @@ function isLineEnd(index: number) {
 }
 
 .player-number {
-  font-size: 1.5vmin;
+  font-size: 2.2vmin;
   font-weight: 700;
   color: #ffd700;
 }
 
 .player-name {
-  font-size: 1.3vmin;
+  font-size: 2vmin;
   font-weight: 600;
   color: #fff;
 }
 
 .player-hand-count {
-  font-size: 1.1vmin;
+  font-size: 1.8vmin;
   color: rgba(255, 255, 255, 0.8);
 }
 
@@ -803,14 +804,14 @@ function isLineEnd(index: number) {
 
 .play-area {
   width: 100%;
-  height: 25vh;
+  height: 18vh;
   background: rgba(0, 0, 0, 0.2);
   border-radius: 1.5vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1.5vh;
+  padding: 0.8vh;
   position: relative;
 }
 
@@ -832,10 +833,10 @@ function isLineEnd(index: number) {
 .played-card {
   background: #fff;
   color: #000;
-  padding: 0.6vh 1vw;
+  padding: 0.8vh 1.2vw;
   border-radius: 0.4vh;
   font-weight: bold;
-  font-size: 1.5vmin;
+  font-size: 1.8vmin;
   min-width: 3vw;
   text-align: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -853,29 +854,31 @@ function isLineEnd(index: number) {
 
 .play-info {
   display: flex;
-  gap: 0.8vw;
-  font-size: 1.2vmin;
+  gap: 1vw;
+  font-size: 1.5vmin;
   color: rgba(255, 255, 255, 0.8);
 }
 
 /* 等待文字 */
 .waiting-text {
-  font-size: 2vmin;
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 3.5vmin;
+  color: rgba(255, 255, 255, 0.8);
   text-align: center;
+  font-weight: 600;
 }
 
 /* 底部区域 */
 .bottom-area {
-  height: 40vh;
+  height: 38vh;
   background: rgba(0, 0, 0, 0.3);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1vh 2vw;
-  gap: 1vh;
+  padding: 0.3vh 1vw 1vh 1vw; /* 减小顶部内边距，保持底部内边距 */
+  gap: 0.5vh;
   position: relative;
+  margin-top: 0; /* 确保没有顶部外边距 */
 }
 
 /* 我的信息 */
@@ -924,9 +927,9 @@ function isLineEnd(index: number) {
 .btn-pass,
 .btn-play,
 .btn-next {
-  padding: 1.2vh 2vw;
+  padding: 1vh 1.8vw;
   border-radius: 1vh;
-  font-size: 1.6vmin;
+  font-size: 2vmin;
   font-weight: 600;
   border: none;
   cursor: pointer;
@@ -1397,29 +1400,54 @@ function isLineEnd(index: number) {
 /* 移动端优化 */
 @media (max-width: 768px) and (orientation: portrait) {
   .top-bar {
-    height: 4vh;
-    padding: 0 3vw;
-    min-height: 30px;
+    height: 3.5vh;
+    padding: 0 2vw;
+    min-height: 28px;
   }
   
   .game-title h1 {
-    font-size: 1.8vmin;
+    font-size: 2.5vmin;
   }
   
   .deck-info {
-    font-size: 1.1vmin;
+    font-size: 1.8vmin;
   }
   
   .bottom-area {
-    height: 42vh;
-    padding: 0.5vh 1vw;
-    gap: 0.5vh;
+    height: 38vh;
+    padding: 0.3vh 0.8vw;
+    gap: 0.3vh;
   }
   
   .btn-pass,
   .btn-play,
   .btn-next {
-    padding: 1vh 1.5vw;
+    padding: 0.6vh 1vw;
+    font-size: 2.2vmin;
+  }
+  
+  .player-number {
+    font-size: 2.8vmin;
+  }
+  
+  .player-name {
+    font-size: 2.5vmin;
+  }
+  
+  .player-hand-count {
+    font-size: 2vmin;
+  }
+  
+  .waiting-text {
+    font-size: 4vmin;
+  }
+  
+  .played-card {
+    font-size: 2vmin;
+    padding: 0.7vh 1vw;
+  }
+  
+  .play-info {
     font-size: 1.8vmin;
   }
   
@@ -1443,34 +1471,66 @@ function isLineEnd(index: number) {
   }
   
   .card-rank {
-    font-size: 1.5vmin;
+    font-size: 2vmin;
   }
   
   .card-suit {
-    font-size: 1.8vmin;
+    font-size: 2.2vmin;
   }
 }
 
 /* 移动端横屏优化 */
 @media (max-width: 768px) and (orientation: landscape) {
   .top-bar {
-    height: 6vh;
-    padding: 0 2vw;
-    min-height: 35px;
+    height: 5.5vh;
+    padding: 0 1.5vw;
+    min-height: 32px;
   }
   
   .game-title h1 {
-    font-size: 1.5vmin;
+    font-size: 2vmin;
   }
   
   .deck-info {
-    font-size: 1.0vmin;
+    font-size: 1.5vmin;
   }
   
   .bottom-area {
-    height: 50vh;
-    padding: 0.3vh 1vw;
-    gap: 0.3vh;
+    height: 46vh;
+    padding: 0.2vh 0.8vw;
+    gap: 0.2vh;
+  }
+  
+  .btn-pass,
+  .btn-play,
+  .btn-next {
+    padding: 0.5vh 1vw;
+    font-size: 2.2vmin;
+  }
+  
+  .player-number {
+    font-size: 2.5vmin;
+  }
+  
+  .player-name {
+    font-size: 2.2vmin;
+  }
+  
+  .player-hand-count {
+    font-size: 1.8vmin;
+  }
+  
+  .waiting-text {
+    font-size: 3.5vmin;
+  }
+  
+  .played-card {
+    font-size: 1.8vmin;
+    padding: 0.6vh 0.8vw;
+  }
+  
+  .play-info {
+    font-size: 1.6vmin;
   }
   
   .btn-pass,

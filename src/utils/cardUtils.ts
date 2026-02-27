@@ -301,6 +301,36 @@ export function compareHands(hand1: Hand, hand2: Hand | null): ComparisonResult 
     return ComparisonResult.INVALID;
   }
   
+  // 特殊牌型之间的比较（炸弹 < 雷 < 多张）
+  const isHand1Special = [HandType.BOMB, HandType.THUNDER, HandType.MULTI].includes(hand1.type);
+  const isHand2Special = [HandType.BOMB, HandType.THUNDER, HandType.MULTI].includes(hand2.type);
+  
+  if (isHand1Special && isHand2Special) {
+    // 同类型比较
+    if (hand1.type === hand2.type) {
+      if (hand1.count !== hand2.count) {
+        return ComparisonResult.INVALID;
+      }
+      if (RANK_VALUES[hand1.rank] > RANK_VALUES[hand2.rank]) {
+        return ComparisonResult.WIN;
+      }
+      return ComparisonResult.LOSE;
+    }
+    
+    // 跨类型比较：炸弹 < 雷 < 多张
+    const typeRank: Record<string, number> = { 
+      [HandType.BOMB]: 1, 
+      [HandType.THUNDER]: 2, 
+      [HandType.MULTI]: 3 
+    };
+    const hand1Rank = typeRank[hand1.type];
+    const hand2Rank = typeRank[hand2.type];
+    if (hand1Rank !== undefined && hand2Rank !== undefined && hand1Rank > hand2Rank) {
+      return ComparisonResult.WIN;
+    }
+    return ComparisonResult.LOSE;
+  }
+  
   // 姐妹对只能被更大的姐妹对、雷或多张管住
   if (hand2.type === HandType.SISTER_PAIR) {
     if (hand1.type === HandType.SISTER_PAIR) {
