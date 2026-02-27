@@ -122,12 +122,14 @@ let dragStartCard: Card | null = null;
 let lastCard: Card | null = null;
 let hasMovedToOtherCard = false;
 let startCardWasSelected = false;
+let hasDragged = false; // 新增：跟踪是否发生过拖动
 
 function handleCardDragStart(card: Card, _event: MouseEvent | TouchEvent) {
   isDragging = true;
   dragStartCard = card;
   lastCard = card;
   hasMovedToOtherCard = false;
+  hasDragged = false; // 重置拖动标记
   startCardWasSelected = isSelected(card);
   
   // 添加全局拖动事件监听
@@ -141,7 +143,7 @@ function handleCardDragStart(card: Card, _event: MouseEvent | TouchEvent) {
 
 function handleCardClick(card: Card) {
   // 只在未拖动的情况下处理点击
-  if (!hasMovedToOtherCard) {
+  if (!hasDragged) {
     const index = selectedCards.value.findIndex(c => c.id === card.id);
     if (index === -1) {
       selectedCards.value.push(card);
@@ -228,6 +230,7 @@ function handleCardDragEnd(event: MouseEvent | TouchEvent) {
   lastCard = null;
   hasMovedToOtherCard = false;
   startCardWasSelected = false;
+  // 不重置 hasDragged，让它在下一次拖动开始时重置
   
   // 移除全局事件监听
   if (typeof window !== 'undefined') {
