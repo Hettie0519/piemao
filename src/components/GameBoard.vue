@@ -132,15 +132,6 @@ function handleCardDragStart(card: Card, _event: MouseEvent | TouchEvent) {
   
   console.log('开始拖动牌:', card.id, '起始牌是否已选中:', startCardWasSelected);
   
-  // 如果起始牌已选中，立即取消选中
-  if (startCardWasSelected) {
-    const index = selectedCards.value.findIndex(c => c.id === card.id);
-    if (index !== -1) {
-      selectedCards.value.splice(index, 1);
-      console.log('拖动开始时取消选中起始牌:', card.id);
-    }
-  }
-  
   // 添加全局拖动事件监听
   if (typeof window !== 'undefined') {
     window.addEventListener('mousemove', handleCardDragMove);
@@ -177,9 +168,20 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
           const startCardInSelected = startCardWasSelected;
           
           if (startCardInSelected) {
-            // 如果起始牌已选中，取消选中模式（取消起始牌和滑过的牌）
-            // 注意：这里不处理起始牌，只在结束时处理
-            // 只取消选中滑过的牌
+            // 如果起始牌已选中，取消选中模式
+            // 第一次滑到其他牌时，立即取消选中起始牌
+            if (!isSelected(dragStartCard!)) {
+              // 起始牌已经被取消了选中（之前处理过），不需要再处理
+            } else {
+              // 取消选中起始牌
+              const startIndex = selectedCards.value.findIndex(c => c.id === dragStartCard!.id);
+              if (startIndex !== -1) {
+                selectedCards.value.splice(startIndex, 1);
+                console.log('取消选中起始牌:', dragStartCard!.id);
+              }
+            }
+            
+            // 取消选中滑过的牌
             if (isSelected(card)) {
               const index = selectedCards.value.findIndex(c => c.id === card.id);
               if (index !== -1) {
@@ -226,7 +228,7 @@ function handleCardDragEnd() {
       selectedCards.value.splice(index, 1);
     }
   }
-  // 注意：起始牌已经在拖动开始时被取消了选中，这里不需要再处理
+  // 注意：如果移动到其他牌且起始牌已选中，起始牌已经在 handleCardDragMove 中被取消了选中
   
   isDragging = false;
   dragStartCard = null;
