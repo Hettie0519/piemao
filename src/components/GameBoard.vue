@@ -215,7 +215,7 @@ function handleCardDragMove(event: MouseEvent | TouchEvent) {
   }
 }
 
-function handleCardDragEnd() {
+function handleCardDragEnd(event: MouseEvent | TouchEvent) {
   console.log('拖动结束，是否移动到其他牌:', hasMovedToOtherCard, '起始牌是否已选中:', startCardWasSelected);
   
   // 如果没有移动到其他牌，这是单击，切换起始牌的选中状态
@@ -242,6 +242,11 @@ function handleCardDragEnd() {
     window.removeEventListener('mouseup', handleCardDragEnd);
     window.removeEventListener('touchmove', handleCardDragMove);
     window.removeEventListener('touchend', handleCardDragEnd);
+  }
+  
+  // 阻止默认的 click 事件（特别是移动端的触摸点击）
+  if (event instanceof TouchEvent || (event instanceof MouseEvent && event.button === 0)) {
+    event.preventDefault();
   }
 }
 
