@@ -1066,6 +1066,22 @@ export const useGameStore = defineStore('game', () => {
       // 添加新消息
       chatMessages.value.push(chatMessage);
       console.log('更新后的消息列表:', chatMessages.value);
+      
+      // 如果我是房主，转发消息给其他玩家（星形网络拓扑）
+      if (isHost.value && message.senderId !== myPlayerId.value) {
+        console.log('我是房主，转发聊天消息给其他玩家');
+        // 转发给除了发送者之外的所有玩家
+        const connectedPlayerIds = players.value
+          .filter(p => p.id !== message.senderId && p.id !== myPlayerId.value)
+          .map(p => p.id);
+        
+        console.log('需要转发的玩家:', connectedPlayerIds);
+        
+        connectedPlayerIds.forEach(playerId => {
+          console.log('转发消息给玩家:', playerId);
+          p2pManager.sendTo(playerId, message);
+        });
+      }
     }
   }
   

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import type { Card } from '../types/game';
 import { GameState } from '../types/game';
@@ -135,53 +135,90 @@ const chatBubbleTimers = ref<Map<string, number>>(new Map());
 
 // 计算聊天气泡的位置
 function getChatBubblePosition(playerId: string) {
-  // 找到对应的玩家元素
-  const playerElement = document.querySelector(`[data-player-id="${playerId}"]`);
-  if (!playerElement) {
-    // 如果找不到元素，返回默认位置
+  const playerContainer = document.querySelector(`[data-player-id="${playerId}"]`);
+  if (!playerContainer) {
     if (playerId === gameStore.myPlayerId) {
-      return { top: 'auto', bottom: '42vh', left: '50%', right: 'auto', transform: 'translateX(-50%)' };
+      // 自己的气泡 - 显示在玩家信息卡片右侧，垂直居中对齐
+      const myInfoTopLeft = document.querySelector('.my-info-top-left');
+      if (myInfoTopLeft) {
+        const rect = myInfoTopLeft.getBoundingClientRect();
+        const containerRect = document.querySelector('.game-container')?.getBoundingClientRect();
+        if (containerRect) {
+          const relativeTop = ((rect.top - containerRect.top) / containerRect.height) * 100;
+          const elementHeightPercent = (rect.height / containerRect.height) * 100;
+          const relativeLeft = ((rect.left - containerRect.left) / containerRect.width) * 100;
+          const elementWidthPercent = (rect.width / containerRect.width) * 100;
+          // 气泡顶部位置 = 卡片顶部 + 卡片高度的一半，然后使用 transform: translateY(-50%) 让气泡垂直居中
+          return {
+            top: `calc(${relativeTop}% + ${elementHeightPercent / 2}%)`,
+            bottom: 'auto',
+            left: `calc(${relativeLeft}% + ${elementWidthPercent}% + 0.5vw)`,
+            right: 'auto',
+            transform: 'translateY(-50%)'
+          };
+        }
+      }
+      return { top: 'auto', bottom: '45vh', left: '50%', right: 'auto', transform: 'translateX(-50%)' };
     }
-    return { top: '35%', left: '10vw', right: 'auto', bottom: 'auto', transform: 'none' };
+    return { top: '35%', left: '8vw', right: 'auto', bottom: 'auto', transform: 'none' };
   }
   
-  const rect = playerElement.getBoundingClientRect();
+  // Get actual player-info element
+  const playerInfo = playerContainer.querySelector('.player-info');
+  if (!playerInfo) {
+    return { top: '35%', left: '8vw', right: 'auto', bottom: 'auto', transform: 'none' };
+  }
+  
+  const rect = playerInfo.getBoundingClientRect();
   const containerRect = document.querySelector('.game-container')?.getBoundingClientRect();
-  
   if (!containerRect) {
-    return { top: '35%', left: '10vw', right: 'auto', bottom: 'auto', transform: 'none' };
+    return { top: '35%', left: '8vw', right: 'auto', bottom: 'auto', transform: 'none' };
   }
   
-  // 计算相对于容器的位置
   const relativeTop = ((rect.top - containerRect.top) / containerRect.height) * 100;
   const relativeLeft = ((rect.left - containerRect.left) / containerRect.width) * 100;
   const relativeRight = 100 - relativeLeft;
+  const elementWidthPercent = (rect.width / containerRect.width) * 100;
   
-  // 判断是左侧、右侧还是底部玩家
   if (relativeTop > 60) {
-    // 底部玩家（我）
-    return { 
-      top: 'auto', 
-      bottom: `calc(100% - ${relativeTop}% - 2vh)`, 
-      left: `${relativeLeft}%`,
-      right: 'auto',
-      transform: 'translateX(-50%)'
-    };
-  } else if (relativeLeft < 50) {
-    // 左侧玩家
+    // Bottom player (me) - 显示在玩家信息卡片右侧，垂直居中对齐
+    const myInfoTopLeft = document.querySelector('.my-info-top-left');
+    if (myInfoTopLeft) {
+      const inlineRect = myInfoTopLeft.getBoundingClientRect();
+      const inlineTop = ((inlineRect.top - containerRect.top) / containerRect.height) * 100;
+      const inlineHeightPercent = (inlineRect.height / containerRect.height) * 100;
+      const inlineLeft = ((inlineRect.left - containerRect.left) / containerRect.width) * 100;
+      const inlineWidthPercent = (inlineRect.width / containerRect.width) * 100;
+      return {
+        top: `calc(${inlineTop}% + ${inlineHeightPercent / 2}%)`,
+        bottom: 'auto',
+        left: `calc(${inlineLeft}% + ${inlineWidthPercent}% + 0.5vw)`,
+        right: 'auto',
+        transform: 'translateY(-50%)'
+      };
+    }
     return { 
       top: `${relativeTop}%`, 
-      left: `calc(${relativeLeft}% + 6vw)`,
+      bottom: 'auto',
+      left: `calc(${relativeLeft}% + ${elementWidthPercent}% + 0.5vw)`,
+      right: 'auto',
+      transform: 'none'
+    };
+  } else if (relativeLeft < 50) {
+    // Left player
+    return { 
+      top: `${relativeTop}%`, 
+      left: `calc(${relativeLeft}% + ${elementWidthPercent}% + 0.5vw)`,
       right: 'auto',
       bottom: 'auto',
       transform: 'none'
     };
   } else {
-    // 右侧玩家
+    // Right player
     return { 
       top: `${relativeTop}%`, 
       left: 'auto',
-      right: `calc(${relativeRight}% + 6vw)`,
+      right: `calc(${relativeRight}% + ${elementWidthPercent}% + 0.5vw)`,
       bottom: 'auto',
       transform: 'none'
     };
@@ -225,10 +262,13 @@ function getChatBubbleArrowClass(playerId: string) {
 }
 
 // 监听聊天消息，设置自动消失计时器
-watch(() => gameStore.chatMessages, (newMessages) => {
+watch(() => gameStore.chatMessages, async (newMessages) => {
   // 清除所有旧的计时器
   chatBubbleTimers.value.forEach(timer => clearTimeout(timer));
   chatBubbleTimers.value.clear();
+  
+  // 等待 DOM 更新完成
+  await nextTick();
   
   // 为每条消息设置1秒后消失的计时器
   newMessages.forEach((msg: any) => {
@@ -485,47 +525,55 @@ function isLineEnd(index: number) {
         </div>
       </div>
 
-      <!-- 底部我的区域 -->
+<!-- 底部我的区域 -->
       <div class="bottom-area">
-        <!-- 我的信息 -->
-        <div class="my-info">
+        <!-- 我的信息 - 在底部区域左上角 -->
+        <div class="my-info-top-left">
           <span v-if="gameStore.myPlayer?.isHost" class="crown">👑</span>
           <span class="player-name">{{ gameStore.myPlayer?.name }}</span>
           <span class="player-hand-count">{{ gameStore.myHand.length }} 张</span>
         </div>
 
-        <!-- 操作按钮 -->
-        <div class="action-buttons">
-          <button
-            class="btn-pass"
-            @click="passTurn"
-            :disabled="!gameStore.canPass"
-          >
-            过牌
-          </button>
-          <button
-            class="btn-play"
-            @click="playSelectedCards"
-            :disabled="!gameStore.isMyTurn || selectedCards.length === 0"
-          >
-            出牌 ({{ selectedCards.length }})
-          </button>
-          <button
-            v-if="gameStore.isHost && gameStore.gameState === 'ended'"
-            class="btn-next"
-            @click="gameStore.nextRound"
-          >
-            下一局
-          </button>
-          <button
-            class="btn-chat"
-            @click="showQuickChat = !showQuickChat"
-          >
-            快捷发言
-          </button>
-        </div>
+        <!-- 操作按钮和我的信息组合 -->
+        <div class="action-buttons-wrapper">
+          <!-- 我的信息 - 在最左侧 -->
+          <div class="my-info-inline">
+            <span v-if="gameStore.myPlayer?.isHost" class="crown">👑</span>
+            <span class="player-name">{{ gameStore.myPlayer?.name }}</span>
+            <span class="player-hand-count">{{ gameStore.myHand.length }} 张</span>
+          </div>
 
-        <!-- 快捷发言列表 -->
+          <!-- 操作按钮 -->
+          <div class="action-buttons">
+            <button
+              class="btn-pass"
+              @click="passTurn"
+              :disabled="!gameStore.canPass"
+            >
+              过牌
+            </button>
+            <button
+              class="btn-play"
+              @click="playSelectedCards"
+              :disabled="!gameStore.isMyTurn || selectedCards.length === 0"
+            >
+              出牌 ({{ selectedCards.length }})
+            </button>
+            <button
+              v-if="gameStore.isHost && gameStore.gameState === 'ended'"
+              class="btn-next"
+              @click="gameStore.nextRound"
+            >
+              下一局
+            </button>
+            <button
+              class="btn-chat"
+              @click="showQuickChat = !showQuickChat"
+            >
+              快捷发言
+            </button>
+          </div>
+        </div>        <!-- 快捷发言列表 -->
         <div v-if="showQuickChat" class="quick-chat-panel">
           <div class="quick-chat-header">
             <span>快捷发言</span>
@@ -781,10 +829,28 @@ function isLineEnd(index: number) {
   align-items: center;
   padding: 1vh 2vw;
   gap: 1vh;
+  position: relative;
 }
 
 /* 我的信息 */
 .my-info {
+  display: none; /* 隐藏原来的单独信息区域 */
+}
+
+.my-info-top-left {
+  display: none; /* 隐藏左上角定位 */
+}
+
+/* 我的信息 - 在按钮最左侧（红框位置） */
+.my-info-inline {
+  display: none; /* 隐藏原来的按钮区域内的信息卡片 */
+}
+
+/* 我的信息 - 在底部区域左上角 */
+.my-info-top-left {
+  position: absolute;
+  top: 1vh;
+  left: 2vw;
   display: flex;
   align-items: center;
   gap: 1vw;
@@ -792,6 +858,15 @@ function isLineEnd(index: number) {
   background: rgba(255, 215, 0, 0.1);
   border-radius: 1vh;
   border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+/* 操作按钮和我的信息组合 */
+.action-buttons-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2vw;
+  margin-bottom: 1vh;
 }
 
 /* 操作按钮 */
@@ -1132,11 +1207,11 @@ function isLineEnd(index: number) {
 @keyframes bubblePop {
   0% {
     opacity: 0;
-    transform: scale(0.5) translateY(10px);
+    transform: scale(0.5) translateY(-50%) translateY(10px);
   }
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: scale(1) translateY(-50%);
   }
 }
 
@@ -1155,9 +1230,12 @@ function isLineEnd(index: number) {
   background: rgba(255, 255, 255, 0.95);
   border: 2px solid rgba(255, 255, 255, 0.8);
   border-radius: 12px;
-  padding: 1.5vh 2vw;
+  padding: 1.2vh 1.5vw;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   position: relative;
+  min-width: 8vw;
+  max-width: 20vw;
+  white-space: nowrap;
 }
 
 .chat-bubble-text {
@@ -1185,16 +1263,7 @@ function isLineEnd(index: number) {
 }
 
 .chat-bubble-arrow-my-bottom {
-  left: 50%;
-  top: auto;
-  bottom: -10px;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 12px solid rgba(255, 255, 255, 0.95);
-  border-bottom: none;
+  display: none; /* 隐藏箭头 */
 }
 
 /* 左侧对手聊天气泡 */
