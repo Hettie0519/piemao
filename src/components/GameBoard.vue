@@ -18,6 +18,11 @@ const SUIT_SYMBOLS = {
 
 const myHand = computed(() => gameStore.myHand);
 
+// 当前玩家的顺序号
+const myPlayerOrder = computed(() => {
+  return gameStore.players.findIndex(p => p.id === gameStore.myPlayerId) + 1;
+});
+
 onMounted(() => {
   // 空实现，不需要检测屏幕方向
 });
@@ -552,6 +557,7 @@ function isLineEnd(index: number) {
         <!-- 我的信息 - 在底部区域左上角 -->
         <div class="my-info-top-left">
           <span v-if="gameStore.myPlayer?.isHost" class="crown">👑</span>
+          <span class="player-number">{{ myPlayerOrder }}</span>
           <span class="player-name">{{ gameStore.myPlayer?.name }}</span>
           <span class="player-hand-count">{{ gameStore.myHand.length }} 张</span>
         </div>
@@ -561,6 +567,7 @@ function isLineEnd(index: number) {
           <!-- 我的信息 - 在最左侧 -->
           <div class="my-info-inline">
             <span v-if="gameStore.myPlayer?.isHost" class="crown">👑</span>
+            <span class="player-number">{{ myPlayerOrder }}</span>
             <span class="player-name">{{ gameStore.myPlayer?.name }}</span>
             <span class="player-hand-count">{{ gameStore.myHand.length }} 张</span>
           </div>
