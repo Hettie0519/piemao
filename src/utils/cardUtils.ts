@@ -301,9 +301,28 @@ export function compareHands(hand1: Hand, hand2: Hand | null): ComparisonResult 
     return ComparisonResult.INVALID;
   }
   
-  // 特殊牌型可以管住普通牌型
-  const specialTypes = [HandType.BOMB, HandType.THUNDER, HandType.MULTI];
-  if (specialTypes.includes(hand1.type) && isHand2Normal) {
+  // 姐妹对只能被更大的姐妹对、雷或多张管住
+  if (hand2.type === HandType.SISTER_PAIR) {
+    if (hand1.type === HandType.SISTER_PAIR) {
+      // 同类型比较
+      if (RANK_VALUES[hand1.rank] > RANK_VALUES[hand2.rank]) {
+        return ComparisonResult.WIN;
+      }
+      return ComparisonResult.LOSE;
+    } else if (hand1.type === HandType.THUNDER) {
+      // 雷可以管住姐妹对
+      return ComparisonResult.WIN;
+    } else if (hand1.type === HandType.MULTI) {
+      // 多张（比雷大）可以管住姐妹对
+      return ComparisonResult.WIN;
+    } else {
+      // 其他牌型不能管住姐妹对
+      return ComparisonResult.INVALID;
+    }
+  }
+  
+  // 多张可以管住普通牌型（单牌、对子、顺子）
+  if (hand1.type === HandType.MULTI && isHand2Normal) {
     return ComparisonResult.WIN;
   }
   
