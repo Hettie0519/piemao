@@ -224,8 +224,10 @@ function handleCardDragEnd(event: MouseEvent | TouchEvent) {
     const index = selectedCards.value.findIndex(c => c.id === dragStartCard!.id);
     if (index === -1) {
       selectedCards.value.push(dragStartCard!);
+      console.log('单击选中牌:', dragStartCard!.id);
     } else {
       selectedCards.value.splice(index, 1);
+      console.log('单击取消选中牌:', dragStartCard!.id);
     }
   }
   // 注意：如果移动到其他牌且起始牌已选中，起始牌已经在 handleCardDragMove 中被取消了选中
@@ -244,8 +246,8 @@ function handleCardDragEnd(event: MouseEvent | TouchEvent) {
     window.removeEventListener('touchend', handleCardDragEnd);
   }
   
-  // 阻止默认的 click 事件（特别是移动端的触摸点击）
-  if (event instanceof TouchEvent || (event instanceof MouseEvent && event.button === 0)) {
+  // 只在移动到其他牌时阻止默认行为，单击时不阻止
+  if (hasMovedToOtherCard) {
     event.preventDefault();
   }
 }
