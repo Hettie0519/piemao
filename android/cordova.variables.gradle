@@ -1,0 +1,5 @@
+ext.cordova = {
+    compileSdkVersion = rootProject.ext.compileSdkVersion
+    minSdkVersion = rootProject.ext.minSdkVersion
+    targetSdkVersion = rootProject.ext.targetSdkVersion
+}
