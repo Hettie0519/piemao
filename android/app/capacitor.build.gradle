@@ -7,7 +7,13 @@ android {
   }
 }
 
-apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
+try {
+    apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
+} catch (Exception e) {
+    // File doesn't exist, skip it
+    logger.info("cordova.variables.gradle not found, skipping...")
+}
+
 dependencies {
 
 
@@ -15,5 +21,5 @@ dependencies {
 
 
 if (hasProperty('postBuildExtras')) {
-  postBuildExtras()
+    postBuildExtras()
 }
