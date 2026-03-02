@@ -448,6 +448,11 @@ export const useGameStore = defineStore('game', () => {
     config.value = newConfig;
     currentPlayerIndex.value = newCurrentPlayerIndex;
     
+    // 清除上一局的状态
+    lastHand.value = null;
+    lastPlayerId.value = null;
+    consecutivePasses.value = 0;
+    
     // 更新玩家列表（包含手牌数量）
     if (updatedPlayers) {
       players.value = updatedPlayers;
