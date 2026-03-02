@@ -8,7 +8,6 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    url: 'https://hettie0519.github.io/piemao/',
     allowNavigation: ['*']
   }
 };
