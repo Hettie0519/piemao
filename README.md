@@ -9,6 +9,7 @@
 - **自定义牌副数**：房主可选择 1-10 副牌，适应不同人数和玩法
 - **确定性发牌**：所有客户端使用相同的算法生成手牌，确保公平性
 - **移动端适配**：响应式设计，支持手机、平板和桌面设备
+- **Android App 支持**：可构建原生 Android 应用，提供更好的游戏体验
 
 ## 🃏 游戏规则
 
@@ -69,13 +70,54 @@ npm run preview
 
 访问地址：`https://your-username.github.io/piemao/`
 
+## 📱 构建 Android App
+
+### 前置要求
+
+- Node.js 20+
+- Java JDK 8 或更高版本
+- Android SDK（可通过 Android Studio 安装）
+
+### 构建步骤
+
+```bash
+# 1. 构建生产版本
+npm run build
+
+# 2. 同步到 Android 项目
+npx cap sync android
+
+# 3. 打开 Android Studio
+npx cap open android
+```
+
+### 在 Android Studio 中
+
+1. 选择 `Build > Build Bundle(s) / APK(s) > Build APK(s)`
+2. 构建完成后，APK 文件位于 `android/app/build/outputs/apk/` 目录
+3. 将 APK 安装到 Android 设备或分享给朋友
+
+### 使用命令行构建
+
+```bash
+# 进入 Android 目录
+cd android
+
+# 构建 Release 版本
+./gradlew assembleRelease
+
+# 或构建 Debug 版本
+./gradlew assembleDebug
+```
+
 ## 📦 技术栈
 
 - **前端框架**: Vue 3 + TypeScript + Vite
 - **UI 框架**: Bootstrap 5
 - **状态管理**: Pinia
 - **P2P 通信**: PeerJS (WebRTC)
-- **部署**: GitHub Pages
+- **跨平台**: Capacitor
+- **部署**: GitHub Pages + Android App
 
 ## 🎯 如何游玩
 
@@ -90,6 +132,7 @@ npm run preview
 
 - WebRTC 需要在 HTTPS 环境下运行（GitHub Pages 默认支持）
 - 建议使用 Chrome、Firefox、Safari 或 Edge 等现代浏览器
+- Android App 建议在 Android 7.0 及以上版本运行
 - 游戏期间请保持网络连接稳定
 - 房主断线后，需要重新创建房间
 
