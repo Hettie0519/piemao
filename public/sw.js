@@ -1,4 +1,4 @@
-const CACHE_NAME = 'piemao-v1';
+const CACHE_NAME = 'piemao-v2';
 const ASSETS_TO_CACHE = [
   '/piemao/',
   '/piemao/index.html',
@@ -16,12 +16,33 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        if (response) {
+        // 检查是否是有效的响应
+        if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-        return fetch(event.request);
+
+        // 克隆响应
+        const responseToCache = response.clone();
+
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            // 只缓存 HTML 文件和其他静态资源，不缓存 JS/CSS
+            const url = new URL(event.request.url);
+            if (event.request.url.endsWith('.html') || 
+                event.request.url.includes('vite.svg') ||
+                event.request.url.includes('manifest.json') ||
+                event.request.url.endsWith('/')) {
+              cache.put(event.request, responseToCache);
+            }
+          });
+
+        return response;
+      })
+      .catch(() => {
+        // 网络失败，尝试从缓存获取
+        return caches.match(event.request);
       })
   );
 });
@@ -36,4 +57,7 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
+  
+  // 立即控制所有客户端
+  return self.clients.claim();
 });
