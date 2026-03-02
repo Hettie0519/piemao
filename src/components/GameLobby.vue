@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
+import { GameState, PlayerStatus } from '../types/game';
 import './GameLobby-styles-v2.css';
 
 const gameStore = useGameStore();
@@ -77,7 +78,8 @@ onMounted(() => {
     <!-- 大厅界面 -->
     <div class="lobby-content">
       <div class="lobby-card">
-        <h2 class="lobby-title">等待房主开始游戏</h2>
+        <h2 v-if="gameStore.gameState === GameState.LOBBY" class="lobby-title">等待房主开始游戏</h2>
+        <h2 v-else class="lobby-title waiting-title">游戏进行中，请等待</h2>
         
         <!-- 昵称输入 -->
         <div class="input-group">
@@ -95,7 +97,7 @@ onMounted(() => {
           <p>正在加入房间...</p>
         </div>
         
-        <div v-else class="joined-info">
+        <div v-else-if="gameStore.gameState === GameState.LOBBY" class="joined-info">
           <p>已加入房间，等待房主开始游戏...</p>
           <p>当前玩家：{{ gameStore.players.length }} 人</p>
           
@@ -109,6 +111,40 @@ onMounted(() => {
               <span v-if="player.isHost" class="host-badge">👑</span>
               {{ player.name || '未设置昵称' }}
               <span v-if="player.id === gameStore.myPlayerId" class="my-badge">你</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 游戏进行中，显示等待信息和当前玩家 -->
+        <div v-else class="waiting-game-info">
+          <p class="waiting-message">游戏正在进行中，请等待本局结束</p>
+          <p class="players-count">当前游戏：{{ gameStore.players.filter(p => p.status === PlayerStatus.PLAYING).length }} 人</p>
+          
+          <!-- 正在游戏的玩家列表 -->
+          <div class="players-list">
+            <div
+              v-for="player in gameStore.players.filter(p => p.status === PlayerStatus.PLAYING)"
+              :key="player.id"
+              class="player-item playing-player"
+            >
+              <span v-if="player.isHost" class="host-badge">👑</span>
+              {{ player.name || '未设置昵称' }}
+              <span class="hand-count">{{ player.handCount }} 张</span>
+            </div>
+          </div>
+          
+          <!-- 等待中的玩家列表 -->
+          <div v-if="gameStore.players.filter(p => p.status === PlayerStatus.WAITING).length > 0" class="waiting-players-section">
+            <p class="waiting-players-title">等待加入的玩家：</p>
+            <div class="players-list">
+              <div
+                v-for="player in gameStore.players.filter(p => p.status === PlayerStatus.WAITING)"
+                :key="player.id"
+                class="player-item waiting-player"
+              >
+                {{ player.name || '未设置昵称' }}
+                <span v-if="player.id === gameStore.myPlayerId" class="my-badge">你</span>
+              </div>
             </div>
           </div>
         </div>
@@ -220,6 +256,56 @@ onMounted(() => {
   border-radius: 1vmin;
   font-size: 1.5vmin;
   margin-left: auto;
+}
+
+.waiting-title {
+  color: #ffd700;
+}
+
+.waiting-game-info {
+  text-align: center;
+}
+
+.waiting-message {
+  color: #ffd700;
+  font-size: 2.5vmin;
+  font-weight: bold;
+  margin-bottom: 1.5vh;
+}
+
+.players-count {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 2vmin;
+  margin-bottom: 2vh;
+}
+
+.playing-player {
+  background: rgba(40, 167, 69, 0.2);
+  border-color: #28a745;
+}
+
+.hand-count {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0.3vh 0.8vw;
+  border-radius: 0.5vmin;
+  font-size: 1.3vmin;
+  margin-left: auto;
+}
+
+.waiting-players-section {
+  margin-top: 2vh;
+}
+
+.waiting-players-title {
+  color: rgba(255, 165, 0, 0.8);
+  font-size: 1.5vmin;
+  margin-bottom: 1vh;
+}
+
+.waiting-player {
+  background: rgba(255, 165, 0, 0.1);
+  border-color: rgba(255, 165, 0, 0.3);
 }
 
 /* 桌面端优化 */

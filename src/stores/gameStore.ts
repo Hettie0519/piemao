@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Card, Player, GameConfig, GameMessage, Hand, ChatMessage } from '../types/game';
-import { GameState, MessageType, RockPaperScissorsChoice } from '../types/game';
+import { GameState, MessageType, PlayerStatus, RockPaperScissorsChoice } from '../types/game';
 import { p2pManager } from '../utils/p2pManager';
 import { dealGame, findRedHeart3Holder, findAllRedHeart3Holders, generateSeed } from '../utils/dealer';
 import { sortCards, validateHand, canBeatHand } from '../utils/cardUtils';
@@ -43,6 +43,9 @@ export const useGameStore = defineStore('game', () => {
   
   // 聊天消息
   const chatMessages = ref<ChatMessage[]>([]);
+  
+  // 游戏排名（只包含参与游戏的玩家）
+  const gameRankings = ref<Array<{id: string, name: string, handCount: number}>>([]);
   
   // 计算属性
   const myPlayer = computed(() => {
@@ -148,6 +151,7 @@ export const useGameStore = defineStore('game', () => {
       isHost: true,
       handCount: 0,
       isConnected: true,
+      status: PlayerStatus.PLAYING,
     }];
     
     gameState.value = GameState.LOBBY;
@@ -237,6 +241,14 @@ export const useGameStore = defineStore('game', () => {
   function startGame(): void {
     if (!isHost.value) return;
     
+    // 将所有等待中的玩家改为游戏中状态
+    players.value.forEach(player => {
+      if (player.status === PlayerStatus.WAITING) {
+        player.status = PlayerStatus.PLAYING;
+        console.log(`玩家 ${player.name} 从等待状态改为游戏状态`);
+      }
+    });
+    
     gameSeed.value = generateSeed();
     gameState.value = GameState.DEALING;
     
@@ -256,11 +268,14 @@ export const useGameStore = defineStore('game', () => {
     
     // 更新每个玩家的手牌数量
     players.value.forEach((player, index) => {
-      if (hands[index]) {
+      if (player.status === PlayerStatus.PLAYING && hands[index]) {
         player.handCount = hands[index].length;
         // 调试：打印每个玩家的红桃3数量
         const redHeart3Count = hands[index].filter(c => c.isRedHeart3).length;
         console.log(`玩家 ${index} (${player.name}) 的红桃3数量: ${redHeart3Count}`);
+      } else if (player.status === PlayerStatus.WAITING) {
+        player.handCount = 0;
+        console.log(`玩家 ${index} (${player.name}) 处于等待状态，不参与发牌`);
       }
     });
     
@@ -289,8 +304,12 @@ export const useGameStore = defineStore('game', () => {
     
     // 保存自己的手牌
     const myIndex = players.value.findIndex(p => p.id === myPlayerId.value);
-    if (myIndex !== -1 && hands[myIndex]) {
+    const myPlayer = myIndex !== -1 ? players.value[myIndex] : null;
+    if (myPlayer && myPlayer.status === PlayerStatus.PLAYING && hands[myIndex] && hands[myIndex].length > 0) {
       myHand.value = sortCards(hands[myIndex]);
+    } else if (myPlayer && myPlayer.status === PlayerStatus.WAITING) {
+      myHand.value = [];
+      console.log('我处于等待状态，不参与发牌');
     }
     
     // 广播游戏开始消息（包含玩家列表和手牌数量）
@@ -314,6 +333,33 @@ export const useGameStore = defineStore('game', () => {
     // gameState.value = GameState.PLAYING; // 删除这行
   }
   
+  /**
+   * 计算下一个玩家索引（跳过等待中的玩家）
+   */
+  function getNextPlayerIndex(): number {
+    let nextIndex = (currentPlayerIndex.value + 1) % players.value.length;
+    let attempts = 0;
+    const maxAttempts = players.value.length; // 防止无限循环
+    
+    // 跳过等待中的玩家
+    while (attempts < maxAttempts) {
+      const nextPlayer = players.value[nextIndex];
+      if (!nextPlayer || nextPlayer.status !== PlayerStatus.WAITING) {
+        break;
+      }
+      nextIndex = (nextIndex + 1) % players.value.length;
+      attempts++;
+    }
+    
+    // 确保返回有效的玩家索引
+    if (!players.value[nextIndex]) {
+      // 如果所有玩家都在等待状态，返回第一个玩家
+      return 0;
+    }
+    
+    return nextIndex;
+  }
+
   /**
    * 出牌
    */
@@ -352,7 +398,7 @@ export const useGameStore = defineStore('game', () => {
     }
     
     // 计算下一个玩家索引
-    const nextPlayerIndex = (currentPlayerIndex.value + 1) % players.value.length;
+    const nextPlayerIndex = getNextPlayerIndex();
     
     const playMessage: GameMessage = {
       type: MessageType.PLAY_HAND,
@@ -417,7 +463,7 @@ export const useGameStore = defineStore('game', () => {
     }
     
     // 计算下一个玩家索引
-    const nextPlayerIndex = (currentPlayerIndex.value + 1) % players.value.length;
+    const nextPlayerIndex = getNextPlayerIndex();
     
     const passMessage: GameMessage = {
       type: MessageType.PASS,
@@ -530,6 +576,16 @@ export const useGameStore = defineStore('game', () => {
         
         gameState.value = GameState.ENDED;
         
+        // 计算排名（只包含参与游戏的玩家）
+        const rankings = players.value.filter(p => p.status === PlayerStatus.PLAYING).map(p => ({
+          id: p.id,
+          name: p.name,
+          handCount: p.handCount,
+        }));
+        
+        // 存储排名
+        gameRankings.value = rankings;
+        
         const gameOverMessage: GameMessage = {
           type: MessageType.GAME_END,
           timestamp: Date.now(),
@@ -537,11 +593,7 @@ export const useGameStore = defineStore('game', () => {
           payload: {
             winnerId: player.id,
             winnerName: player.name,
-            rankings: players.value.map(p => ({
-              id: p.id,
-              name: p.name,
-              handCount: p.handCount,
-            })),
+            rankings: rankings,
           },
         };
         
@@ -568,8 +620,9 @@ export const useGameStore = defineStore('game', () => {
     
     consecutivePasses.value++;
     
-    // 检查是否所有人都过牌了
-    if (consecutivePasses.value >= players.value.length - 1) {
+    // 检查是否所有人都过牌了（只计算参与游戏的玩家）
+    const playingPlayers = players.value.filter(p => p.status === PlayerStatus.PLAYING);
+    if (consecutivePasses.value >= playingPlayers.length - 1) {
       // 新一轮，最后出牌者先手
       lastHand.value = null;
       consecutivePasses.value = 0;
@@ -600,8 +653,11 @@ export const useGameStore = defineStore('game', () => {
     
     gameState.value = GameState.ENDED;
     
-    // 更新排名信息
+    // 存储排名
     if (rankings) {
+      gameRankings.value = rankings;
+      
+      // 更新排名信息
       players.value.forEach(player => {
         const ranking = rankings.find((r: any) => r.id === player.id);
         if (ranking) {
@@ -626,12 +682,18 @@ export const useGameStore = defineStore('game', () => {
       return;
     }
     
+    // 根据游戏状态设置玩家状态
+    const playerStatus = (gameState.value === GameState.PLAYING || gameState.value === GameState.ROCK_PAPER_SCISSORS)
+      ? PlayerStatus.WAITING
+      : PlayerStatus.PLAYING;
+    
     const newPlayer: Player = {
       id: message.senderId,
       name: message.payload.playerName,
       isHost: false,
       handCount: 0,
       isConnected: true,
+      status: playerStatus,
     };
     
     players.value.push(newPlayer);
@@ -665,6 +727,7 @@ export const useGameStore = defineStore('game', () => {
         players: players.value,
         config: config.value,
         roomId: roomId.value,
+        gameState: gameState.value,
       },
     };
     
@@ -1109,6 +1172,7 @@ export const useGameStore = defineStore('game', () => {
     rpsChoices,
     myRPSChoice,
     chatMessages,
+    gameRankings,
     
     // 计算属性
     myPlayer,

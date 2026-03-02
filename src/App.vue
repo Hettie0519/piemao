@@ -1,16 +1,28 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch, computed } from 'vue';
 import { useGameStore } from './stores/gameStore';
 import GameConfig from './components/GameConfig.vue';
 import GameLobby from './components/GameLobby.vue';
 import GameBoard from './components/GameBoard.vue';
 import GameResult from './components/GameResult.vue';
-import { GameState } from './types/game';
+import { GameState, PlayerStatus } from './types/game';
 
 const gameStore = useGameStore();
 const playerName = ref('');
 const showWelcome = ref(true);
 const isInitializing = ref(false);
+
+// 判断是否应该显示 GameLobby
+const shouldShowGameLobby = computed(() => {
+  return (gameStore.gameState === GameState.LOBBY && !gameStore.isHost) || 
+         (gameStore.myPlayer?.status === PlayerStatus.WAITING);
+});
+
+// 判断是否应该显示 GameBoard
+const shouldShowGameBoard = computed(() => {
+  return (gameStore.gameState === GameState.PLAYING || gameStore.gameState === GameState.ROCK_PAPER_SCISSORS) && 
+         gameStore.myPlayer?.status !== PlayerStatus.WAITING;
+});
 
 onMounted(async () => {
   // 禁用页面复制功能
@@ -94,10 +106,10 @@ watch(playerName, (newName) => {
     <GameConfig v-else-if="gameStore.gameState === GameState.LOBBY && gameStore.isHost" :playerName="playerName" @updatePlayerName="playerName = $event" />
 
     <!-- 游戏大厅（玩家 - 包含昵称输入） -->
-    <GameLobby v-else-if="gameStore.gameState === GameState.LOBBY && !gameStore.isHost" :playerName="playerName" @updatePlayerName="playerName = $event" />
+    <GameLobby v-else-if="shouldShowGameLobby" :playerName="playerName" @updatePlayerName="playerName = $event" />
 
     <!-- 游戏主界面（包含石头剪子布） -->
-    <GameBoard v-else-if="gameStore.gameState === GameState.PLAYING || gameStore.gameState === GameState.ROCK_PAPER_SCISSORS" />
+    <GameBoard v-else-if="shouldShowGameBoard" />
 
     <!-- 游戏结果 -->
     <GameResult v-else-if="gameStore.gameState === GameState.ENDED" />

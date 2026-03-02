@@ -35,7 +35,7 @@ onUnmounted(() => {
 
 const sortedHand = computed(() => sortCards(gameStore.myHand));
 
-// 其他玩家列表（排除自己），按逆时针顺序排列
+// 其他玩家列表（排除自己和等待中的玩家），按逆时针顺序排列
 const otherPlayers = computed(() => {
   const myIndex = gameStore.players.findIndex(p => p.id === gameStore.myPlayerId);
   const allPlayers = gameStore.players;
@@ -44,7 +44,11 @@ const otherPlayers = computed(() => {
   // 从当前玩家开始，按逆时针方向遍历其他玩家
   for (let i = 1; i < allPlayers.length; i++) {
     const index = (myIndex + i) % allPlayers.length;
-    other.push(allPlayers[index]);
+    const player = allPlayers[index];
+    // 只添加不在等待状态的玩家
+    if (player && player.status !== 'waiting') {
+      other.push(player);
+    }
   }
   
   return other;
@@ -502,6 +506,7 @@ function isLineEnd(index: number) {
               <span v-if="player!.isHost" class="crown">👑</span>
               <span class="player-number">{{ getLeftPlayerActualIndex(index) + 1 }}</span>
               <span class="player-name">{{ player!.name }}</span>
+              <span v-if="player!.status === 'waiting'" class="waiting-badge">等待中</span>
               <span class="player-hand-count">{{ player!.handCount }} 张</span>
             </div>
           </div>
@@ -546,6 +551,7 @@ function isLineEnd(index: number) {
               <span v-if="player!.isHost" class="crown">👑</span>
               <span class="player-number">{{ getRightPlayerActualIndex(index) + 1 }}</span>
               <span class="player-name">{{ player!.name }}</span>
+              <span v-if="player!.status === 'waiting'" class="waiting-badge">等待中</span>
               <span class="player-hand-count">{{ player!.handCount }} 张</span>
             </div>
           </div>
@@ -559,6 +565,7 @@ function isLineEnd(index: number) {
           <span v-if="gameStore.myPlayer?.isHost" class="crown">👑</span>
           <span class="player-number">{{ myPlayerOrder }}</span>
           <span class="player-name">{{ gameStore.myPlayer?.name }}</span>
+          <span v-if="gameStore.myPlayer?.status === 'waiting'" class="waiting-badge">等待中</span>
           <span class="player-hand-count">{{ gameStore.myHand.length }} 张</span>
         </div>
 
@@ -569,6 +576,7 @@ function isLineEnd(index: number) {
             <span v-if="gameStore.myPlayer?.isHost" class="crown">👑</span>
             <span class="player-number">{{ myPlayerOrder }}</span>
             <span class="player-name">{{ gameStore.myPlayer?.name }}</span>
+            <span v-if="gameStore.myPlayer?.status === 'waiting'" class="waiting-badge">等待中</span>
             <span class="player-hand-count">{{ gameStore.myHand.length }} 张</span>
           </div>
 
@@ -792,6 +800,17 @@ function isLineEnd(index: number) {
 .player-hand-count {
   font-size: 1.8vmin;
   color: rgba(255, 255, 255, 0.8);
+}
+
+.waiting-badge {
+  background: rgba(255, 165, 0, 0.8);
+  color: #fff;
+  padding: 0.3vh 0.8vw;
+  border-radius: 0.5vh;
+  font-size: 1.3vmin;
+  font-weight: 600;
+  margin-left: 0.5vw;
+  white-space: nowrap;
 }
 
 /* 当前轮次高亮 */

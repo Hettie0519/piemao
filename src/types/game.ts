@@ -33,6 +33,12 @@ export interface Hand {
   isQiZi: boolean;  // 是否为"起子"状态
 }
 
+// 玩家状态
+export enum PlayerStatus {
+  PLAYING = 'playing',  // 游戏中
+  WAITING = 'waiting',  // 等待中
+}
+
 // 玩家信息
 export interface Player {
   id: string;
@@ -40,6 +46,7 @@ export interface Player {
   isHost: boolean;
   handCount: number;
   isConnected: boolean;
+  status: PlayerStatus;  // 玩家状态
 }
 
 // 游戏配置

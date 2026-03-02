@@ -1,7 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useGameStore } from '../stores/gameStore';
+import { PlayerStatus } from '../types/game';
 
 const gameStore = useGameStore();
+
+// 使用存储的排名（只包含参与游戏的玩家）
+const displayPlayers = computed(() => {
+  // 如果有存储的排名，就使用它
+  if (gameStore.gameRankings && gameStore.gameRankings.length > 0) {
+    return gameStore.gameRankings;
+  }
+  // 否则，从 players 中过滤出参与游戏的玩家
+  return gameStore.players.filter(p => p.status === PlayerStatus.PLAYING);
+});
 
 function nextRound() {
   gameStore.nextRound();
@@ -17,20 +29,20 @@ function reloadPage() {
     <div class="result-card">
       <h1 class="title">🎉 游戏结束 🎉</h1>
       <p class="winner-text">
-        恭喜 {{ gameStore.players.find(p => p.handCount === 0)?.name }} 获胜！
+        恭喜 {{ displayPlayers.find(p => p.handCount === 0)?.name }} 获胜！
       </p>
       
       <div class="ranking-section">
         <h5 class="ranking-title">最终排名</h5>
         <ul class="ranking-list">
           <li
-            v-for="(player, index) in [...gameStore.players].sort((a, b) => a.handCount - b.handCount)"
+            v-for="(player, index) in [...displayPlayers].sort((a, b) => a.handCount - b.handCount)"
             :key="player.id"
             class="ranking-item"
           >
             <div class="player-info">
               <span class="rank-badge">#{{ index + 1 }}</span>
-              <span v-if="player.isHost" class="host-badge">房主</span>
+              <span v-if="gameStore.players.find(p => p.id === player.id)?.isHost" class="host-badge">房主</span>
               <span class="player-name">{{ player.name }}</span>
               <span v-if="player.id === gameStore.myPlayerId" class="me-badge">你</span>
             </div>
