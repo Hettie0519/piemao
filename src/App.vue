@@ -124,6 +124,9 @@ html, body {
   height: 100vh;
   overflow: hidden;
   background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 欢迎页面容器 */

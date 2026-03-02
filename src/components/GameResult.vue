@@ -60,12 +60,17 @@ function reloadPage() {
 
 <style scoped>
 .game-result-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
   padding: 2vh 2vw;
   background: #1a3d2a;
+  z-index: 9999;
 }
 
 .result-card {
@@ -131,49 +136,69 @@ function reloadPage() {
 
 .rank-badge {
   background: #007bff;
-  padding: 0.3vh 0.8vw;
+  padding: 0.5vh 1vw;
   border-radius: 0.5vh;
-  font-size: 1.5vmin;
+  font-size: 1.6vmin;
   font-weight: bold;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 2.5vmin;
+  line-height: 1;
 }
 
 .host-badge {
   background: #ffc107;
   color: #000;
-  padding: 0.3vh 0.8vw;
+  padding: 0.5vh 1vw;
   border-radius: 0.5vh;
-  font-size: 1.3vmin;
+  font-size: 1.4vmin;
   font-weight: bold;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 2.5vmin;
+  line-height: 1;
 }
 
 .player-name {
-  font-size: 1.8vmin;
+  font-size: 2vmin;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 2.5vmin;
+  line-height: 1;
 }
 
 .me-badge {
   background: #28a745;
-  padding: 0.3vh 0.8vw;
+  padding: 0.5vh 1vw;
   border-radius: 0.5vh;
-  font-size: 1.3vmin;
+  font-size: 1.4vmin;
   font-weight: bold;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 2.5vmin;
+  line-height: 1;
 }
 
 .hand-count {
   background: #6c757d;
-  padding: 0.3vh 1vw;
+  padding: 0.5vh 1.5vw;
   border-radius: 0.5vh;
-  font-size: 1.5vmin;
+  font-size: 1.6vmin;
   font-weight: bold;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 2.5vmin;
+  line-height: 1;
 }
 
 .button-group {
