@@ -41,7 +41,10 @@ export const useGameStore = defineStore('game', () => {
   const rpsChoices = ref<Map<string, RockPaperScissorsChoice>>(new Map()); // 玩家的选择
   const myRPSChoice = ref<RockPaperScissorsChoice | null>(null);
   
-  // 聊天消息
+  // 标记是否刚有人出完牌（用于第一回合的过牌判断）
+  const justFinishedPlayer = ref<string | null>(null);
+
+// 聊天消息
   const chatMessages = ref<ChatMessage[]>([]);
   
   // 游戏排名（只包含参与游戏的玩家）
@@ -341,19 +344,22 @@ export const useGameStore = defineStore('game', () => {
     let attempts = 0;
     const maxAttempts = players.value.length; // 防止无限循环
     
-    // 跳过等待中的玩家
+    // 跳过等待中的玩家和已经出完牌的玩家
     while (attempts < maxAttempts) {
       const nextPlayer = players.value[nextIndex];
-      if (!nextPlayer || nextPlayer.status !== PlayerStatus.WAITING) {
+      // 跳过等待状态或手牌为0的玩家
+      if (!nextPlayer || nextPlayer.status === PlayerStatus.WAITING || nextPlayer.handCount === 0) {
+        nextIndex = (nextIndex + 1) % players.value.length;
+        attempts++;
+      } else {
         break;
       }
-      nextIndex = (nextIndex + 1) % players.value.length;
-      attempts++;
     }
     
     // 确保返回有效的玩家索引
-    if (!players.value[nextIndex]) {
-      // 如果所有玩家都在等待状态，返回第一个玩家
+    const finalPlayer = players.value[nextIndex];
+    if (!finalPlayer || finalPlayer.handCount === 0) {
+      // 如果所有玩家都在等待状态或都出完牌了，返回第一个玩家
       return 0;
     }
     
@@ -451,6 +457,8 @@ export const useGameStore = defineStore('game', () => {
    * 过牌
    */
   function pass(): void {
+    console.log(`pass() 被调用，玩家: ${myPlayerName.value}，是否轮到自己: ${isMyTurn.value}，canPass: ${canPass.value}`);
+    
     // 验证是否轮到自己
     if (!isMyTurn.value) {
       alert('现在不是你的回合');
@@ -461,6 +469,8 @@ export const useGameStore = defineStore('game', () => {
       alert('现在不能过牌');
       return;
     }
+    
+    console.log(`发送过牌消息，当前玩家: ${myPlayerName.value}`);
     
     // 计算下一个玩家索引
     const nextPlayerIndex = getNextPlayerIndex();
@@ -477,10 +487,12 @@ export const useGameStore = defineStore('game', () => {
     if (isHost.value) {
       // 主机先轮转，然后广播
       currentPlayerIndex.value = nextPlayerIndex;
-      p2pManager.broadcast(passMessage);
+      const sent = p2pManager.broadcast(passMessage);
+      console.log(`主机广播过牌消息，发送结果: ${sent}`);
     } else {
       // 发送给主机
-      p2pManager.sendTo(p2pManager.getHostId()!, passMessage);
+      const sent = p2pManager.sendTo(p2pManager.getHostId()!, passMessage);
+      console.log(`发送过牌消息给主机，发送结果: ${sent}`);
     }
   }
   
@@ -538,12 +550,16 @@ export const useGameStore = defineStore('game', () => {
     
     // 如果不是自己的消息，才更新手牌数量
     if (!isOwnMessage && message.payload.cards) {
-      player.handCount -= message.payload.cards.length;
+      player.handCount = Math.max(0, player.handCount - message.payload.cards.length);
+      console.log(`更新 ${player.name} 的手牌数量: ${player.handCount}`);
     }
     
     // 更新最后出牌（存储完整的卡片信息用于显示）
     const cards = message.payload.cardDetails || [];
     const validation = validateHand(cards, config.value.minStraight, config.value.minSisterPair);
+    
+    // 重置连续过牌计数
+    consecutivePasses.value = 0;
     
     lastHand.value = {
       type: message.payload.handType || validation.type || 'single',
@@ -552,13 +568,21 @@ export const useGameStore = defineStore('game', () => {
       rank: cards.length > 0 ? cards[0].rank : '3',
       isQiZi: message.payload.isQiZi || validation.isQiZi || false,
     };
-    lastPlayerId.value = message.senderId;
-    consecutivePasses.value = 0;
     
-    // 从消息中获取下一个玩家索引
+    lastPlayerId.value = message.senderId;
+// 从消息中获取下一个玩家索引
     if (message.payload.nextPlayerIndex !== undefined) {
       currentPlayerIndex.value = message.payload.nextPlayerIndex;
-      console.log(`轮转到 ${players.value[currentPlayerIndex.value]?.name}`);
+      const nextPlayer = players.value[currentPlayerIndex.value];
+      console.log(`轮转到 ${nextPlayer?.name} (索引: ${currentPlayerIndex.value}, 手牌数: ${nextPlayer?.handCount})`);
+      
+      // 如果轮到的玩家手牌为0，自动跳过
+      if (nextPlayer && nextPlayer.handCount === 0) {
+        console.log(`玩家 ${nextPlayer.name} 手牌为0，自动跳过`);
+        const autoNextIndex = getNextPlayerIndex();
+        currentPlayerIndex.value = autoNextIndex;
+        console.log(`自动轮转到 ${players.value[autoNextIndex]?.name}`);
+      }
     }
     
     // 如果是主机，广播给所有玩家（如果是玩家发给主机的消息）
@@ -566,42 +590,56 @@ export const useGameStore = defineStore('game', () => {
       p2pManager.broadcast(message);
     }
     
-    // 检查游戏是否结束
+    // 检查游戏是否结束（只有一名玩家未出完牌时才结束）
     if (player.handCount === 0) {
       console.log(`玩家 ${player.name} 手牌归零`);
       
-      // 只有主机才处理游戏结束并广播消息
+      // 标记刚有人出完牌
+      justFinishedPlayer.value = player.id;
+      
+      // 只有主机才处理
       if (isHost.value) {
-        console.log(`我是主机，处理游戏结束并广播`);
+        // 检查是否只有一名玩家未出完牌
+        const playersWithCards = players.value.filter(p => 
+          p.status === PlayerStatus.PLAYING && p.handCount > 0
+        );
         
-        gameState.value = GameState.ENDED;
+        console.log(`还有 ${playersWithCards.length} 名玩家有牌`);
         
-        // 计算排名（只包含参与游戏的玩家）
-        const rankings = players.value.filter(p => p.status === PlayerStatus.PLAYING).map(p => ({
-          id: p.id,
-          name: p.name,
-          handCount: p.handCount,
-        }));
-        
-        // 存储排名
-        gameRankings.value = rankings;
-        
-        const gameOverMessage: GameMessage = {
-          type: MessageType.GAME_END,
-          timestamp: Date.now(),
-          senderId: myPlayerId.value,
-          payload: {
-            winnerId: player.id,
-            winnerName: player.name,
-            rankings: rankings,
-          },
-        };
-        
-        console.log('广播游戏结束消息');
-        const sent = p2pManager.broadcast(gameOverMessage);
-        console.log('游戏结束消息发送结果:', sent);
-      } else {
-        console.log(`我不是主机，等待主机处理游戏结束`);
+        // 如果只有一名玩家有牌，游戏结束
+        if (playersWithCards.length <= 1) {
+          console.log(`我是主机，处理游戏结束并广播`);
+          
+          gameState.value = GameState.ENDED;
+          
+          // 计算排名（按出完牌的顺序，手牌少的排前面）
+          const rankings = players.value
+            .filter(p => p.status === PlayerStatus.PLAYING)
+            .sort((a, b) => a.handCount - b.handCount)
+            .map(p => ({
+              id: p.id,
+              name: p.name,
+              handCount: p.handCount,
+            }));
+          
+          // 存储排名
+          gameRankings.value = rankings;
+          
+          const gameOverMessage: GameMessage = {
+            type: MessageType.GAME_END,
+            timestamp: Date.now(),
+            senderId: myPlayerId.value,
+            payload: {
+              winnerId: player.id,
+              winnerName: player.name,
+              rankings: rankings,
+            },
+          };
+          
+          console.log('广播游戏结束消息');
+          const sent = p2pManager.broadcast(gameOverMessage);
+          console.log('游戏结束消息发送结果:', sent);
+        }
       }
     }
   }
@@ -620,13 +658,49 @@ export const useGameStore = defineStore('game', () => {
     
     consecutivePasses.value++;
     
-    // 检查是否所有人都过牌了（只计算参与游戏的玩家）
-    const playingPlayers = players.value.filter(p => p.status === PlayerStatus.PLAYING);
-    if (consecutivePasses.value >= playingPlayers.length - 1) {
-      // 新一轮，最后出牌者先手
+    console.log(`处理过牌: ${player.name} 过牌，连续过牌次数: ${consecutivePasses.value}`);
+    
+    // 检查是否所有人都过牌了（只计算参与游戏且有手牌的玩家）
+    const playingPlayersWithCards = players.value.filter(p => 
+      p.status === PlayerStatus.PLAYING && p.handCount > 0
+    );
+    
+    // 检查是否有玩家已经出完牌
+    const anyPlayerFinished = players.value.some(p => 
+      p.status === PlayerStatus.PLAYING && p.handCount === 0
+    );
+    
+    console.log(`还有 ${playingPlayersWithCards.length} 名玩家有牌: ${playingPlayersWithCards.map(p => p.name).join(', ')}`);
+    console.log(`是否有玩家出完牌: ${anyPlayerFinished}`);
+    console.log(`当前 lastHand:`, lastHand.value);
+    
+    // 根据是否有玩家出完牌来决定判断条件
+    // 如果刚有人出完牌（第一回合），需要所有还有牌的玩家都过牌
+    // 如果是后续回合，只需要其他有牌的玩家过牌
+    let requiredPasses: number;
+    
+    if (anyPlayerFinished && justFinishedPlayer.value) {
+      // 第一回合：需要所有还有牌的玩家都过牌
+      requiredPasses = playingPlayersWithCards.length;
+      console.log('第一回合：需要所有有牌的玩家都过牌');
+    } else {
+      // 后续回合：只需要其他有牌的玩家过牌
+      requiredPasses = playingPlayersWithCards.length - 1;
+      console.log('后续回合：只需要其他有牌的玩家过牌');
+    }
+    
+    console.log(`需要的过牌次数: ${requiredPasses}，当前过牌次数: ${consecutivePasses.value}`);
+    
+    if (consecutivePasses.value >= requiredPasses) {
+      // 新一轮，可以出任意牌
+      console.log(`清除 lastHand，新一轮开始`);
       lastHand.value = null;
       consecutivePasses.value = 0;
-      console.log('所有人都过牌了，新一轮开始');
+      // 清除刚出完牌的标记
+      justFinishedPlayer.value = null;
+      console.log(`所有人都过牌了（需要 ${requiredPasses} 次，实际 ${consecutivePasses.value} 次），新一轮开始，可以出任意牌`);
+    } else {
+      console.log(`过牌次数不足，lastHand 保持不变`);
     }
     
     // 从消息中获取下一个玩家索引
