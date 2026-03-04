@@ -43,6 +43,9 @@ export const useGameStore = defineStore('game', () => {
   
   // 标记是否刚有人出完牌（用于第一回合的过牌判断）
   const justFinishedPlayer = ref<string | null>(null);
+  
+  // 记录玩家出完牌的顺序
+  const finishOrder = ref<string[]>([]);
 
 // 聊天消息
   const chatMessages = ref<ChatMessage[]>([]);
@@ -69,9 +72,14 @@ export const useGameStore = defineStore('game', () => {
       lastHand: lastHand.value,
       isMyTurn: isMyTurn.value,
       currentPlayerIndex: currentPlayerIndex.value,
-      myPlayerId: myPlayerId.value,
       currentPlayer: currentPlayer.value,
-      result: can
+      currentPlayerId: currentPlayer.value?.id,
+      currentPlayerName: currentPlayer.value?.name,
+      myPlayerId: myPlayerId.value,
+      result: can,
+      isMyTurnMatch: currentPlayer.value?.id === myPlayerId.value,
+      currentPlayerInPlayers: players.value[currentPlayerIndex.value],
+      currentPlayerInPlayersId: players.value[currentPlayerIndex.value]?.id
     });
     return can;
   });
@@ -385,6 +393,13 @@ export const useGameStore = defineStore('game', () => {
     
     // 检查是否可以管住上家的牌
     let beatResult = { canBeat: true, isQiZi: false };
+    console.log('出牌前检查 lastHand:', {
+      lastHand: lastHand.value,
+      lastHandType: lastHand.value?.type,
+      lastHandCards: lastHand.value?.cards?.length || 0,
+      willCheckBeat: !!(lastHand.value && lastHand.value.cards.length > 0)
+    });
+    
     if (lastHand.value && lastHand.value.cards.length > 0) {
       beatResult = canBeatHand(cards, lastHand.value, config.value.minStraight, config.value.minSisterPair);
       
@@ -485,7 +500,10 @@ export const useGameStore = defineStore('game', () => {
     };
     
     if (isHost.value) {
-      // 主机先轮转，然后广播
+      // 主机先更新 consecutivePasses，然后轮转，再广播
+      consecutivePasses.value++;
+      console.log(`主机过牌，consecutivePasses 更新为: ${consecutivePasses.value}`);
+      
       currentPlayerIndex.value = nextPlayerIndex;
       const sent = p2pManager.broadcast(passMessage);
       console.log(`主机广播过牌消息，发送结果: ${sent}`);
@@ -590,9 +608,15 @@ export const useGameStore = defineStore('game', () => {
       p2pManager.broadcast(message);
     }
     
-    // 检查游戏是否结束（只有一名玩家未出完牌时才结束）
+    // 记录玩家出完牌的顺序
     if (player.handCount === 0) {
       console.log(`玩家 ${player.name} 手牌归零`);
+      
+      // 记录玩家出完牌的顺序
+      if (!finishOrder.value.includes(player.id)) {
+        finishOrder.value.push(player.id);
+        console.log(`记录玩家出完牌顺序: ${finishOrder.value.map(id => players.value.find(p => p.id === id)?.name).join(' -> ')}`);
+      }
       
       // 标记刚有人出完牌
       justFinishedPlayer.value = player.id;
@@ -612,15 +636,37 @@ export const useGameStore = defineStore('game', () => {
           
           gameState.value = GameState.ENDED;
           
-          // 计算排名（按出完牌的顺序，手牌少的排前面）
+          // 计算排名（按出完牌的顺序，先出完牌的排前面）
+          console.log(`出完牌顺序: ${finishOrder.value.map(id => players.value.find(p => p.id === id)?.name).join(' -> ')}`);
+          console.log(`计算排名前玩家列表: ${players.value.filter(p => p.status === PlayerStatus.PLAYING).map(p => `${p.name}(手牌:${p.handCount})`).join(', ')}`);
+          
           const rankings = players.value
             .filter(p => p.status === PlayerStatus.PLAYING)
-            .sort((a, b) => a.handCount - b.handCount)
+            .sort((a, b) => {
+              const indexA = finishOrder.value.indexOf(a.id);
+              const indexB = finishOrder.value.indexOf(b.id);
+              // 都出完牌了，按顺序排名
+              if (indexA !== -1 && indexB !== -1) {
+                return indexA - indexB;
+              }
+              // 只有a出完牌了，a排在前面
+              if (indexA !== -1) {
+                return -1;
+              }
+              // 只有b出完牌了，b排在前面
+              if (indexB !== -1) {
+                return 1;
+              }
+              // 都没出完牌，按手牌数量排名
+              return a.handCount - b.handCount;
+            })
             .map(p => ({
               id: p.id,
               name: p.name,
               handCount: p.handCount,
             }));
+          
+          console.log(`计算排名后: ${rankings.map((r, i) => `第${i+1}名: ${r.name}(手牌:${r.handCount})`).join(', ')}`);
           
           // 存储排名
           gameRankings.value = rankings;
@@ -670,7 +716,10 @@ export const useGameStore = defineStore('game', () => {
       p.status === PlayerStatus.PLAYING && p.handCount === 0
     );
     
-    console.log(`还有 ${playingPlayersWithCards.length} 名玩家有牌: ${playingPlayersWithCards.map(p => p.name).join(', ')}`);
+    console.log(`还有 ${playingPlayersWithCards.length} 名玩家有牌: ${playingPlayersWithCards.map(p => `${p.name}(ID:${p.id.substring(0,8)}手牌:${p.handCount})`).join(', ')}`);
+    console.log(`完整玩家列表: ${players.value.map(p => `${p.name}(ID:${p.id.substring(0,8)}手牌:${p.handCount})`).join(', ')}`);
+    console.log(`当前玩家索引: ${currentPlayerIndex.value}, 当前玩家: ${players.value[currentPlayerIndex.value]?.name}, 当前玩家ID: ${players.value[currentPlayerIndex.value]?.id}`);
+    console.log(`myPlayerId: ${myPlayerId.value}`);
     console.log(`是否有玩家出完牌: ${anyPlayerFinished}`);
     console.log(`当前 lastHand:`, lastHand.value);
     
@@ -698,7 +747,10 @@ export const useGameStore = defineStore('game', () => {
       consecutivePasses.value = 0;
       // 清除刚出完牌的标记
       justFinishedPlayer.value = null;
-      console.log(`所有人都过牌了（需要 ${requiredPasses} 次，实际 ${consecutivePasses.value} 次），新一轮开始，可以出任意牌`);
+      
+      // 不要清除出完牌顺序记录，因为已经出完牌的玩家的顺序需要保留到游戏结束用于排名计算
+      // finishOrder.value = [];
+      console.log(`所有人都过牌了（需要 ${requiredPasses} 次），新一轮开始，可以出任意牌`);
     } else {
       console.log(`过牌次数不足，lastHand 保持不变`);
     }

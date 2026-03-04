@@ -36,7 +36,7 @@ function reloadPage() {
         <h5 class="ranking-title">最终排名</h5>
         <ul class="ranking-list">
           <li
-            v-for="(player, index) in [...displayPlayers].sort((a, b) => a.handCount - b.handCount)"
+            v-for="(player, index) in displayPlayers"
             :key="player.id"
             class="ranking-item"
           >
