@@ -18,10 +18,6 @@ const displayPlayers = computed(() => {
 function nextRound() {
   gameStore.nextRound();
 }
-
-function reloadPage() {
-  window.location.reload();
-}
 </script>
 
 <template>
@@ -58,12 +54,6 @@ function reloadPage() {
           @click="nextRound"
         >
           下一局
-        </button>
-        <button
-          class="btn-outline-large"
-          @click="reloadPage"
-        >
-          返回大厅
         </button>
       </div>
     </div>
@@ -234,21 +224,5 @@ function reloadPage() {
 
 .btn-primary-large:hover {
   background: #0056b3;
-}
-
-.btn-outline-large {
-  background: transparent;
-  color: #fff;
-  border: 2px solid #fff;
-  padding: 1.5vh 3vw;
-  border-radius: 1vh;
-  font-size: 2vmin;
-  font-weight: bold;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.btn-outline-large:hover {
-  background: rgba(255, 255, 255, 0.1);
 }
 </style>

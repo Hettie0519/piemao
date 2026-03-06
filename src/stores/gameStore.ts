@@ -439,21 +439,8 @@ export const useGameStore = defineStore('game', () => {
     
     console.log(`出牌后手牌数量: ${myHand.value.length}`);
     
-    const currentPlayer = myPlayer.value;
-    if (currentPlayer) {
-      currentPlayer.handCount = myHand.value.length;
-      console.log(`更新 myPlayer.handCount: ${currentPlayer.handCount}`);
-    }
-    
-    // 同时更新 players 数组中的自己
-    const myPlayerIndex = players.value.findIndex(p => p.id === myPlayerId.value);
-    if (myPlayerIndex !== -1) {
-      const myPlayerInList = players.value[myPlayerIndex];
-      if (myPlayerInList) {
-        myPlayerInList.handCount = myHand.value.length;
-        console.log(`更新 players[${myPlayerIndex}].handCount: ${myPlayerInList.handCount}`);
-      }
-    }
+    // 注意：这里不更新 players 数组中的 handCount，让 handlePlayHand 统一处理
+    // 这样可以确保无论是主机还是玩家，手牌数量的更新逻辑是一致的
     
     if (isHost.value) {
       // 主机先轮转，然后广播，然后处理自己的消息来检测游戏结束
@@ -566,8 +553,9 @@ export const useGameStore = defineStore('game', () => {
     
     console.log(`处理 ${player.name} 的出牌消息 (isOwnMessage: ${isOwnMessage})`);
     
-    // 如果不是自己的消息，才更新手牌数量
-    if (!isOwnMessage && message.payload.cards) {
+    // 更新 players 数组中的手牌数量（无论是自己的消息还是其他玩家的消息）
+    // 这样可以确保所有客户端的手牌数量保持一致
+    if (message.payload.cards) {
       player.handCount = Math.max(0, player.handCount - message.payload.cards.length);
       console.log(`更新 ${player.name} 的手牌数量: ${player.handCount}`);
     }
@@ -597,6 +585,27 @@ export const useGameStore = defineStore('game', () => {
       // 如果轮到的玩家手牌为0，自动跳过
       if (nextPlayer && nextPlayer.handCount === 0) {
         console.log(`玩家 ${nextPlayer.name} 手牌为0，自动跳过`);
+        
+        // 如果是主机，需要广播自动过牌消息
+        if (isHost.value) {
+          const autoNextIndex = getNextPlayerIndex();
+          
+          // 广播自动过牌消息
+          const autoPassMessage: GameMessage = {
+            type: MessageType.PASS,
+            timestamp: Date.now(),
+            senderId: nextPlayer.id,
+            payload: {
+              nextPlayerIndex: autoNextIndex,
+              autoPass: true, // 标记为自动过牌
+            },
+          };
+          
+          p2pManager.broadcast(autoPassMessage);
+          console.log(`广播自动过牌消息，玩家 ${nextPlayer.name} 被跳过，自动轮转到 ${players.value[autoNextIndex]?.name}`);
+        }
+        
+        // 本地也更新
         const autoNextIndex = getNextPlayerIndex();
         currentPlayerIndex.value = autoNextIndex;
         console.log(`自动轮转到 ${players.value[autoNextIndex]?.name}`);
@@ -702,9 +711,13 @@ export const useGameStore = defineStore('game', () => {
     
     console.log(`处理 ${player.name} 的过牌消息`);
     
-    consecutivePasses.value++;
-    
-    console.log(`处理过牌: ${player.name} 过牌，连续过牌次数: ${consecutivePasses.value}`);
+    // 如果是自动过牌（手牌为0被跳过），不更新 consecutivePasses
+    if (!message.payload.autoPass) {
+      consecutivePasses.value++;
+      console.log(`处理过牌: ${player.name} 过牌，连续过牌次数: ${consecutivePasses.value}`);
+    } else {
+      console.log(`处理自动过牌: ${player.name} 手牌为0被自动跳过，不更新连续过牌次数`);
+    }
     
     // 检查是否所有人都过牌了（只计算参与游戏且有手牌的玩家）
     const playingPlayersWithCards = players.value.filter(p => 
@@ -758,7 +771,17 @@ export const useGameStore = defineStore('game', () => {
     // 从消息中获取下一个玩家索引
     if (message.payload.nextPlayerIndex !== undefined) {
       currentPlayerIndex.value = message.payload.nextPlayerIndex;
-      console.log(`轮转到 ${players.value[currentPlayerIndex.value]?.name}`);
+      const nextPlayer = players.value[currentPlayerIndex.value];
+      console.log(`轮转到 ${nextPlayer?.name}`);
+      
+      // 检查是否轮回到了上一次出牌的玩家
+      // 如果是，清空 lastHand 让该玩家可以自由出牌
+      if (lastPlayerId.value && nextPlayer && nextPlayer.id === lastPlayerId.value) {
+        console.log(`轮回到了上一次出牌的玩家 ${nextPlayer.name}，清空 lastHand，可以自由出牌`);
+        lastHand.value = null;
+        lastPlayerId.value = null;
+        consecutivePasses.value = 0;
+      }
     }
     
     // 如果是主机，广播给所有玩家（如果是玩家发给主机的消息）
