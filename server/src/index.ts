@@ -30,5 +30,12 @@ app.get('/ws', async (c) => {
 // 健康检查
 app.get('/health', (c) => c.json({ status: 'ok', room: ROOM_ID }));
 
+// 重置房间（清除所有玩家）
+app.post('/reset', async (c) => {
+  const stub = c.env.GAME_ROOM.getByName(ROOM_ID);
+  const response = await stub.fetch(new Request('http://internal/reset', { method: 'POST' }));
+  return c.json({ status: 'reset', message: '房间已重置' });
+});
+
 export { Room };
 export default app;

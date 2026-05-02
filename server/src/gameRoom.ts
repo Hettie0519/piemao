@@ -270,6 +270,17 @@ export class Room extends DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    // 处理内部重置请求
+    if (url.pathname === '/reset' && request.method === 'POST') {
+      this.state = this.createInitialState();
+      await this.ctx.storage.deleteAll();
+      return new Response(JSON.stringify({ status: 'reset' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('Expected WebSocket', { status: 426 });
     }
