@@ -293,8 +293,15 @@ export class Room extends DurableObject {
     if (playerId) {
       const player = this.state.players.get(playerId);
       if (player) {
-        player.isConnected = false;
-        this.broadcast({ type: MessageType.PLAYER_LEAVE, senderId: playerId, payload: { playerId } });
+        // 从玩家列表中移除
+        this.state.players.delete(playerId);
+        // 广播玩家离开消息
+        this.broadcast({
+          type: MessageType.PLAYER_LEAVE,
+          senderId: playerId,
+          timestamp: Date.now(),
+          payload: { playerId },
+        });
       }
       this.sessions.delete(ws);
       await this.saveState();
