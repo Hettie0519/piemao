@@ -83,18 +83,19 @@ export enum MessageType {
   PLAYER_JOIN = 'player_join',
   PLAYER_LEAVE = 'player_leave',
   UPDATE_PLAYER_NAME = 'update_player_name', // 更新玩家昵称
-  
+
   // 游戏控制
   GAME_START = 'game_start',
   GAME_END = 'game_end',
   NEXT_ROUND = 'next_round',
-  
+  RETURN_TO_LOBBY = 'return_to_lobby', // 返回大厅
+
   // 游戏操作
   PLAY_HAND = 'play_hand',
   PASS = 'pass',
   RPS_CHOICE = 'rps_choice', // 石头剪子布选择
   CHAT_MESSAGE = 'chat_message', // 聊天消息
-  
+
   // 状态同步
   STATE_SYNC = 'state_sync',
   ERROR = 'error',

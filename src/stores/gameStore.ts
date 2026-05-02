@@ -215,6 +215,15 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
+   * 返回大厅
+   */
+  function returnToLobby(): void {
+    wsManager.send({
+      type: MessageType.RETURN_TO_LOBBY,
+    });
+  }
+
+  /**
    * 注册消息处理器
    */
   function registerMessageHandlers(): void {
@@ -468,5 +477,6 @@ export const useGameStore = defineStore('game', () => {
     sendChatMessage,
     updatePlayerName,
     nextRound,
+    returnToLobby,
   };
 });

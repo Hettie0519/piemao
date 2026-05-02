@@ -18,6 +18,10 @@ const displayPlayers = computed(() => {
 function nextRound() {
   gameStore.nextRound();
 }
+
+function returnToLobby() {
+  gameStore.returnToLobby();
+}
 </script>
 
 <template>
@@ -27,7 +31,7 @@ function nextRound() {
       <p class="winner-text">
         恭喜 {{ displayPlayers.find(p => p.handCount === 0)?.name }} 获胜！
       </p>
-      
+
       <div class="ranking-section">
         <h5 class="ranking-title">最终排名</h5>
         <ul class="ranking-list">
@@ -54,6 +58,12 @@ function nextRound() {
           @click="nextRound"
         >
           下一局
+        </button>
+        <button
+          class="btn-secondary-large"
+          @click="returnToLobby"
+        >
+          返回房间
         </button>
       </div>
     </div>
@@ -224,5 +234,21 @@ function nextRound() {
 
 .btn-primary-large:hover {
   background: #0056b3;
+}
+
+.btn-secondary-large {
+  background: #6c757d;
+  color: #fff;
+  border: none;
+  padding: 1.5vh 3vw;
+  border-radius: 1vh;
+  font-size: 2vmin;
+  font-weight: bold;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-secondary-large:hover {
+  background: #5a6268;
 }
 </style>

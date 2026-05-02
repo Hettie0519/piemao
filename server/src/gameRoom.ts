@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import type { GameMessage, Player, GameConfig, GameState, Hand, Card, Rank, Suit } from './types';
+import type { GameMessage, Player, GameConfig, Hand, Card, Rank, Suit } from './types';
 import { GameState, MessageType, PlayerStatus, HandType, RockPaperScissorsChoice } from './types';
 
 // 牌值映射
@@ -304,15 +304,25 @@ export class Room extends DurableObject {
     if (playerId) {
       const player = this.state.players.get(playerId);
       if (player) {
-        // 只标记为断开，不移除玩家（支持重连）
-        player.isConnected = false;
-        // 广播玩家断开消息
-        this.broadcast({
-          type: MessageType.PLAYER_LEAVE,
-          senderId: playerId,
-          timestamp: Date.now(),
-          payload: { playerId, disconnected: true },
-        });
+        // 大厅或游戏结束时，直接移除玩家
+        if (this.state.gameState === GameState.LOBBY || this.state.gameState === GameState.ENDED) {
+          this.state.players.delete(playerId);
+          this.broadcast({
+            type: MessageType.PLAYER_LEAVE,
+            senderId: playerId,
+            timestamp: Date.now(),
+            payload: { playerId, disconnected: false },
+          });
+        } else {
+          // 游戏进行中，标记为断开（支持重连）
+          player.isConnected = false;
+          this.broadcast({
+            type: MessageType.PLAYER_LEAVE,
+            senderId: playerId,
+            timestamp: Date.now(),
+            payload: { playerId, disconnected: true },
+          });
+        }
       }
       this.sessions.delete(ws);
       await this.saveState();
@@ -342,6 +352,9 @@ export class Room extends DurableObject {
       case MessageType.NEXT_ROUND:
         await this.handleStartGame(msg);
         break;
+      case MessageType.RETURN_TO_LOBBY:
+        await this.handleReturnToLobby();
+        break;
     }
   }
 
@@ -350,6 +363,21 @@ export class Room extends DurableObject {
     const playerId = msg.senderId;
 
     this.sessions.set(ws, playerId);
+
+    // 游戏结束时，重置为大厅状态
+    if (this.state.gameState === GameState.ENDED) {
+      this.state.gameState = GameState.LOBBY;
+      this.state.finishOrder = [];
+      this.state.lastHand = null;
+      this.state.lastPlayerId = null;
+      this.state.consecutivePasses = 0;
+      this.state.justFinishedPlayer = null;
+      // 重置所有玩家状态
+      this.state.players.forEach(p => {
+        p.status = PlayerStatus.PLAYING;
+        p.handCount = 0;
+      });
+    }
 
     // 检查是否是重连的玩家
     const existingPlayer = this.state.players.get(playerId);
@@ -432,6 +460,32 @@ export class Room extends DurableObject {
     }
   }
 
+  private async handleReturnToLobby() {
+    // 重置为大厅状态
+    this.state.gameState = GameState.LOBBY;
+    this.state.finishOrder = [];
+    this.state.lastHand = null;
+    this.state.lastPlayerId = null;
+    this.state.consecutivePasses = 0;
+    this.state.justFinishedPlayer = null;
+    this.state.gameSeed = '';
+    // 重置所有玩家状态
+    this.state.players.forEach(p => {
+      p.status = PlayerStatus.PLAYING;
+      p.handCount = 0;
+    });
+
+    this.broadcast({
+      type: MessageType.STATE_SYNC,
+      payload: {
+        gameState: GameState.LOBBY,
+        players: Array.from(this.state.players.values()),
+      },
+    });
+
+    await this.saveState();
+  }
+
   private async handleStartGame(msg: GameMessage) {
     const { config } = msg.payload || {};
     if (config) this.state.gameConfig = config;
@@ -450,8 +504,13 @@ export class Room extends DurableObject {
       if (p.status === PlayerStatus.WAITING) p.status = PlayerStatus.PLAYING;
     });
 
-    const players = Array.from(this.state.players.values()).filter(p => p.status === PlayerStatus.PLAYING);
+    const players = Array.from(this.state.players.values()).filter(p => p.status === PlayerStatus.PLAYING && p.isConnected);
     const playerCount = players.length;
+
+    if (playerCount < 2) {
+      // 玩家不足，无法开始
+      return;
+    }
 
     this.state.gameSeed = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
     this.state.gameState = GameState.DEALING;

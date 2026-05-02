@@ -81,6 +81,7 @@ export enum MessageType {
   CHAT_MESSAGE = 'chat_message',
   STATE_SYNC = 'state_sync',
   ERROR = 'error',
+  RETURN_TO_LOBBY = 'return_to_lobby',
 }
 
 // 游戏消息
