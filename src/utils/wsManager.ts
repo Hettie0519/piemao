@@ -5,6 +5,9 @@ const WS_URL = 'wss://chuaipoker.kochab.ccwu.cc/ws';
 // 本地开发时使用
 // const WS_URL = 'ws://localhost:8787/ws';
 
+// 本地存储 key
+const PLAYER_ID_KEY = 'chuaipoker_player_id';
+
 interface ConnectionHandlers {
   onOpen?: () => void;
   onClose?: () => void;
@@ -21,7 +24,21 @@ export class WebSocketManager {
   private connectionHandlers: ConnectionHandlers = {};
 
   constructor() {
-    this.myId = this.generateId();
+    this.myId = this.loadOrGenerateId();
+  }
+
+  private loadOrGenerateId(): string {
+    // 尝试从 localStorage 读取已有的 playerId
+    const savedId = localStorage.getItem(PLAYER_ID_KEY);
+    if (savedId) {
+      console.log('恢复已有 playerId:', savedId);
+      return savedId;
+    }
+    // 生成新的 playerId 并保存
+    const newId = this.generateId();
+    localStorage.setItem(PLAYER_ID_KEY, newId);
+    console.log('生成新 playerId:', newId);
+    return newId;
   }
 
   async connect(): Promise<boolean> {
