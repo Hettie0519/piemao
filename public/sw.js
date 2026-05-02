@@ -1,9 +1,9 @@
-const CACHE_NAME = 'piemao-v2';
+const CACHE_NAME = 'ChuaiPoker-v1';
 const ASSETS_TO_CACHE = [
-  '/piemao/',
-  '/piemao/index.html',
-  '/piemao/vite.svg',
-  '/piemao/manifest.json'
+  '/ChuaiPoker/',
+  '/ChuaiPoker/index.html',
+  '/ChuaiPoker/vite.svg',
+  '/ChuaiPoker/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {

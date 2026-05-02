@@ -1,4 +1,4 @@
-package com.piemao.game;
+package com.chuaipoker.game;
 
 import com.getcapacitor.BridgeActivity;
 

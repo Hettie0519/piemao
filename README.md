@@ -1,11 +1,11 @@
-# 踹牌 - P2P 联机扑克游戏
+# 踹牌 - 多人联机扑克游戏
 
-一款基于 WebRTC 技术的纯前端扑克游戏，无需后端服务器，玩家通过分享房间号即可建立点对点（P2P）连接。
+一款基于 Hono + Cloudflare Workers + Durable Objects 的多人联机扑克游戏，服务器协调模式，连接稳定可靠。
 
 ## 🎮 游戏特色
 
-- **零服务器成本**：纯前端实现，使用 WebRTC 进行 P2P 通信
-- **点对点直连**：无需登录注册，分享房间号即可开始游戏
+- **稳定连接**：使用 WebSocket + Durable Objects，不受 NAT/防火墙影响
+- **自动连接**：单房间模式，打开网页即可加入游戏，无需房间号
 - **自定义牌副数**：房主可选择 1-10 副牌，适应不同人数和玩法
 - **确定性发牌**：所有客户端使用相同的算法生成手牌，确保公平性
 - **移动端适配**：响应式设计，支持手机、平板和桌面设备
@@ -38,7 +38,7 @@
 
 ```bash
 # 进入项目目录
-cd piemao
+cd ChuaiPoker
 
 # 安装依赖
 npm install
@@ -68,7 +68,7 @@ npm run preview
 3. 选择 `gh-pages` 分支作为源
 4. 推送到 `main` 分支后，自动触发部署
 
-访问地址：`https://your-username.github.io/piemao/`
+访问地址：`https://kochab0519.github.io/ChuaiPoker/`
 
 ## 📱 构建 Android App
 
@@ -115,26 +115,26 @@ cd android
 - **前端框架**: Vue 3 + TypeScript + Vite
 - **UI 框架**: Bootstrap 5
 - **状态管理**: Pinia
-- **P2P 通信**: PeerJS (WebRTC)
+- **后端**: Hono + Cloudflare Workers + Durable Objects
+- **通信**: WebSocket
 - **跨平台**: Capacitor
-- **部署**: GitHub Pages + Android App
+- **部署**: GitHub Pages + Cloudflare Workers
 
 ## 🎯 如何游玩
 
-1. **创建房间**：房主创建房间后，会生成一个房间号
-2. **分享房间号**：将房间号分享给朋友
-3. **加入房间**：朋友输入房间号加入游戏
-4. **配置游戏**：房主设置牌副数（1-10）
-5. **开始游戏**：所有人准备好后，房主点击开始
-6. **享受游戏**：红桃3持有者先手，逆时针轮转
+1. **打开游戏**：所有玩家打开游戏网页，自动连接到游戏房间
+2. **等待玩家**：等待其他玩家加入游戏
+3. **设置游戏**：房主设置牌副数（1-10）
+4. **开始游戏**：所有人准备好后，房主点击开始
+5. **享受游戏**：红桃3持有者先手，逆时针轮转
 
 ## 📝 注意事项
 
-- WebRTC 需要在 HTTPS 环境下运行（GitHub Pages 默认支持）
+- WebSocket 需要在 HTTPS 环境下运行（GitHub Pages 默认支持）
 - 建议使用 Chrome、Firefox、Safari 或 Edge 等现代浏览器
 - Android App 建议在 Android 7.0 及以上版本运行
 - 游戏期间请保持网络连接稳定
-- 房主断线后，需要重新创建房间
+- 断线重连后可继续游戏
 
 ## 🤝 贡献
 

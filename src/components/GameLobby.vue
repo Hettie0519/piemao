@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { onMounted, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { GameState, PlayerStatus } from '../types/game';
 import './GameLobby-styles-v2.css';
 
 const gameStore = useGameStore();
-const joining = ref(false);
-const FIXED_ROOM_ID = 'hettie2026';
 
 const props = defineProps<{
   playerName: string;
@@ -18,58 +16,21 @@ const emit = defineEmits<{
 
 // 监听昵称变化
 watch(() => props.playerName, (newName: string) => {
-  console.log('watch 被触发，props.playerName:', newName);
-  console.log('watch 被触发，gameStore.myPlayerName:', gameStore.myPlayerName);
   if (newName) {
-    gameStore.myPlayerName = newName;
-    // 发送昵称更新给房主
-    console.log('发送昵称更新给房主:', newName);
-    gameStore.sendPlayerNameUpdate(newName);
+    gameStore.updatePlayerName(newName);
   }
 });
 
 function onNameInput(event: Event) {
   const target = event.target as HTMLInputElement;
-  console.log('onNameInput 被调用:', target.value);
   emit('updatePlayerName', target.value);
 }
 
 onMounted(() => {
-  // 空实现，不需要检测屏幕方向
-  
   // 如果昵称不为空，立即发送昵称更新
   if (props.playerName && props.playerName.trim()) {
-    console.log('组件挂载时昵称已存在，立即发送昵称更新:', props.playerName);
-    gameStore.myPlayerName = props.playerName;
-    gameStore.sendPlayerNameUpdate(props.playerName);
+    gameStore.updatePlayerName(props.playerName);
   }
-});
-
-onUnmounted(() => {
-  // 空实现
-});
-
-async function joinRoom() {
-  joining.value = true;
-  const success = await gameStore.joinRoom(FIXED_ROOM_ID);
-  
-  if (!success) {
-    alert('加入房间失败，请检查网络连接');
-    joining.value = false;
-  } else {
-    joining.value = false;
-    console.log('成功加入房间，等待房主开始游戏');
-  }
-}
-
-// 自动加入房间
-onMounted(() => {
-  // 延迟一下，确保初始化完成
-  setTimeout(() => {
-    if (!gameStore.isHost) {
-      joinRoom();
-    }
-  }, 500);
 });
 </script>
 
@@ -80,7 +41,7 @@ onMounted(() => {
       <div class="lobby-card">
         <h2 v-if="gameStore.gameState === GameState.LOBBY" class="lobby-title">等待房主开始游戏</h2>
         <h2 v-else class="lobby-title waiting-title">游戏进行中，请等待</h2>
-        
+
         <!-- 昵称输入 -->
         <div class="input-group">
           <label class="input-label">你的昵称</label>
@@ -92,15 +53,11 @@ onMounted(() => {
             placeholder="请输入你的昵称"
           />
         </div>
-        
-        <div v-if="joining" class="joining-info">
-          <p>正在加入房间...</p>
-        </div>
-        
-        <div v-else-if="gameStore.gameState === GameState.LOBBY" class="joined-info">
+
+        <div v-if="gameStore.gameState === GameState.LOBBY" class="joined-info">
           <p>已加入房间，等待房主开始游戏...</p>
           <p>当前玩家：{{ gameStore.players.length }} 人</p>
-          
+
           <!-- 玩家列表 -->
           <div class="players-list">
             <div
@@ -114,12 +71,12 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        
+
         <!-- 游戏进行中，显示等待信息和当前玩家 -->
         <div v-else class="waiting-game-info">
           <p class="waiting-message">游戏正在进行中，请等待本局结束</p>
           <p class="players-count">当前游戏：{{ gameStore.players.filter(p => p.status === PlayerStatus.PLAYING).length }} 人</p>
-          
+
           <!-- 正在游戏的玩家列表 -->
           <div class="players-list">
             <div
@@ -132,7 +89,7 @@ onMounted(() => {
               <span class="hand-count">{{ player.handCount }} 张</span>
             </div>
           </div>
-          
+
           <!-- 等待中的玩家列表 -->
           <div v-if="gameStore.players.filter(p => p.status === PlayerStatus.WAITING).length > 0" class="waiting-players-section">
             <p class="waiting-players-title">等待加入的玩家：</p>
@@ -215,13 +172,11 @@ onMounted(() => {
 }
 
 /* 加入信息 */
-.joining-info,
 .joined-info {
   text-align: center;
   padding: 2vh;
 }
 
-.joining-info p,
 .joined-info p {
   margin: 1vh 0;
   font-size: 2vmin;
@@ -313,7 +268,7 @@ onMounted(() => {
   .lobby-content {
     flex-direction: row;
   }
-  
+
   .lobby-card {
     max-width: 400px;
   }
@@ -325,13 +280,9 @@ onMounted(() => {
     max-width: 90vw;
     padding: 2vh 3vw;
   }
-  
+
   .lobby-title {
     font-size: 4vmin;
-  }
-  
-  .btn-join {
-    font-size: 2.5vmin;
   }
 }
 </style>

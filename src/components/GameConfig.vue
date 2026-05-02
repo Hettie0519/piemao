@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { onMounted, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
-import { p2pManager } from '../utils/p2pManager';
 import './GameConfig-styles-v2.css';
 
 const gameStore = useGameStore();
-const isInitializing = ref(true);
 
 const props = defineProps<{
   playerName: string;
@@ -17,17 +15,8 @@ const emit = defineEmits<{
 
 // 监听昵称变化
 watch(() => props.playerName, (newName: string) => {
-  console.log('房主昵称变化:', newName);
   if (newName) {
-    gameStore.myPlayerName = newName;
-    // 我是房主，更新自己的昵称
-    const player = gameStore.players.find(p => p.id === gameStore.myPlayerId);
-    if (player) {
-      player.name = newName;
-      console.log('房主更新自己的昵称:', newName);
-    }
-    // 广播昵称更新
-    gameStore.broadcastPlayerNameUpdate(newName);
+    gameStore.updatePlayerName(newName);
   }
 });
 
@@ -37,35 +26,10 @@ function onNameInput(event: Event) {
 }
 
 onMounted(() => {
-  // 空实现，不需要检测屏幕方向
-  
   // 如果昵称不为空，立即发送昵称更新
   if (props.playerName && props.playerName.trim()) {
-    console.log('组件挂载时昵称已存在，立即更新昵称:', props.playerName);
-    gameStore.myPlayerName = props.playerName;
-    const player = gameStore.players.find(p => p.id === gameStore.myPlayerId);
-    if (player) {
-      player.name = props.playerName;
-    }
-    gameStore.broadcastPlayerNameUpdate(props.playerName);
+    gameStore.updatePlayerName(props.playerName);
   }
-  
-  // 确保房间已创建
-  if (!gameStore.isHost && gameStore.gameState === 'lobby') {
-    gameStore.createRoom();
-  }
-  
-  // 等待 PeerJS 初始化
-  const checkInterval = setInterval(() => {
-    if (p2pManager.getMyId()) {
-      isInitializing.value = false;
-      clearInterval(checkInterval);
-    }
-  }, 100);
-});
-
-onUnmounted(() => {
-  // 空实现
 });
 
 function startGame() {
@@ -79,11 +43,11 @@ function startGame() {
 
 <template>
   <div class="game-container vh-100 d-flex flex-column">
-<!-- 配置界面 -->
+    <!-- 配置界面 -->
     <div class="config-content">
       <div class="config-card">
         <h2 class="card-title">你是房主 <span class="host-icon">👑</span></h2>
-        
+
         <!-- 昵称输入 -->
         <div class="input-group">
           <label class="input-label">你的昵称</label>
@@ -95,7 +59,7 @@ function startGame() {
             placeholder="请输入你的昵称"
           />
         </div>
-        
+
         <!-- 牌副数配置 -->
         <div class="deck-section">
           <h5 class="card-title">扑克牌副数</h5>
@@ -118,7 +82,7 @@ function startGame() {
           </div>
           <small class="help-text">牌副数越多，炸弹和大牌出现概率越高</small>
         </div>
-        
+
         <!-- 玩家列表 -->
         <div class="players-section">
           <h5 class="card-title">玩家列表 ({{ gameStore.players.length }}/10)</h5>
@@ -134,7 +98,7 @@ function startGame() {
             </div>
           </div>
         </div>
-        
+
         <!-- 开始按钮 -->
         <button
           class="btn-start"
@@ -334,7 +298,7 @@ function startGame() {
     max-width: 800px;
     margin: 0 auto;
   }
-  
+
   .config-card {
     padding: 3vh 4vw;
   }
@@ -345,11 +309,11 @@ function startGame() {
   .config-content {
     padding: 1.5vh;
   }
-  
+
   .config-card {
     padding: 2vh 3vw;
   }
-  
+
   .card-title {
     font-size: 3vmin;
   }

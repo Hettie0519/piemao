@@ -14,13 +14,13 @@ const isInitializing = ref(false);
 
 // 判断是否应该显示 GameLobby
 const shouldShowGameLobby = computed(() => {
-  return (gameStore.gameState === GameState.LOBBY && !gameStore.isHost) || 
+  return (gameStore.gameState === GameState.LOBBY && !gameStore.isHost) ||
          (gameStore.myPlayer?.status === PlayerStatus.WAITING);
 });
 
 // 判断是否应该显示 GameBoard
 const shouldShowGameBoard = computed(() => {
-  return (gameStore.gameState === GameState.PLAYING || gameStore.gameState === GameState.ROCK_PAPER_SCISSORS) && 
+  return (gameStore.gameState === GameState.PLAYING || gameStore.gameState === GameState.ROCK_PAPER_SCISSORS) &&
          gameStore.myPlayer?.status !== PlayerStatus.WAITING;
 });
 
@@ -30,19 +30,19 @@ onMounted(async () => {
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('selectstart', (e) => e.preventDefault());
   document.addEventListener('cut', (e) => e.preventDefault());
-  
+
   // 从本地存储加载昵称
-  const savedName = localStorage.getItem('piemao_nickname');
+  const savedName = localStorage.getItem('chuaipoker_nickname');
   if (savedName) {
     playerName.value = savedName;
   }
-  
-  // 自动初始化 P2P（不输入昵称）
+
+  // 初始化 WebSocket 连接
   isInitializing.value = true;
   try {
     await gameStore.initialize('');
-    
-    // 等待 myPlayerId 被设置
+
+    // 等待连接成功
     await new Promise<void>((resolve) => {
       const checkInterval = setInterval(() => {
         if (gameStore.myPlayerId) {
@@ -50,27 +50,17 @@ onMounted(async () => {
           resolve();
         }
       }, 100);
-      
+
       // 5秒超时
       setTimeout(() => {
         clearInterval(checkInterval);
         resolve();
       }, 5000);
     });
-    
-    console.log('初始化完成，myPlayerId:', gameStore.myPlayerId);
-    
-    // 只有当 myPlayerId 等于固定房间号时，才创建房间
-    if (gameStore.myPlayerId === 'hettie2026') {
-      console.log('我是房主，创建房间');
-      gameStore.createRoom();
-      console.log('房间创建完成，gameState:', gameStore.gameState);
-      console.log('isHost:', gameStore.isHost);
-    } else {
-      console.log('我是玩家，等待加入房间');
-    }
-    
-    // 隐藏欢迎页面
+
+    // 发送加入请求
+    gameStore.joinGame(playerName.value);
+
     showWelcome.value = false;
   } catch (error) {
     console.error('初始化失败:', error);
@@ -82,7 +72,7 @@ onMounted(async () => {
 // 监听昵称变化并保存
 watch(playerName, (newName) => {
   if (newName) {
-    localStorage.setItem('piemao_nickname', newName);
+    localStorage.setItem('chuaipoker_nickname', newName);
   }
 });
 </script>
@@ -93,11 +83,11 @@ watch(playerName, (newName) => {
     <div v-if="showWelcome" class="welcome-container">
       <div class="welcome-card">
         <h1 class="game-title">踹牌</h1>
-        <p class="game-subtitle">P2P 联机扑克游戏</p>
-        
+        <p class="game-subtitle">多人联机扑克游戏</p>
+
         <div v-if="isInitializing" class="loading-state">
           <div class="spinner"></div>
-          <p>正在连接房间...</p>
+          <p>正在连接服务器...</p>
         </div>
       </div>
     </div>
@@ -197,20 +187,6 @@ html, body {
   margin: 0;
 }
 
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1vh;
-}
-
-.input-label {
-  font-size: 2vmin;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: 500;
-}
-
-/* 昵称输入框样式已移至组件样式文件中 */
-
 /* 加载状态 */
 .loading-state {
   display: flex;
@@ -254,11 +230,11 @@ html, body {
     padding: 3vh 4vw;
     max-width: 90vw;
   }
-  
+
   .game-title {
     font-size: 6vmin;
   }
-  
+
   .game-subtitle {
     font-size: 2.5vmin;
   }
