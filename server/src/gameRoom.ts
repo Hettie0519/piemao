@@ -304,14 +304,14 @@ export class Room extends DurableObject {
     if (playerId) {
       const player = this.state.players.get(playerId);
       if (player) {
-        // 从玩家列表中移除
-        this.state.players.delete(playerId);
-        // 广播玩家离开消息
+        // 只标记为断开，不移除玩家（支持重连）
+        player.isConnected = false;
+        // 广播玩家断开消息
         this.broadcast({
           type: MessageType.PLAYER_LEAVE,
           senderId: playerId,
           timestamp: Date.now(),
-          payload: { playerId },
+          payload: { playerId, disconnected: true },
         });
       }
       this.sessions.delete(ws);
@@ -351,6 +351,42 @@ export class Room extends DurableObject {
 
     this.sessions.set(ws, playerId);
 
+    // 检查是否是重连的玩家
+    const existingPlayer = this.state.players.get(playerId);
+    if (existingPlayer) {
+      // 重连：恢复连接状态
+      existingPlayer.isConnected = true;
+      if (playerName && playerName.trim()) {
+        existingPlayer.name = playerName;
+      }
+
+      // 广播玩家重连
+      this.broadcast({
+        type: MessageType.PLAYER_JOIN,
+        senderId: playerId,
+        timestamp: Date.now(),
+        payload: { player: existingPlayer, reconnected: true },
+      }, ws);
+
+      // 发送当前状态给重连玩家
+      ws.send(JSON.stringify({
+        type: MessageType.STATE_SYNC,
+        payload: {
+          players: Array.from(this.state.players.values()),
+          gameConfig: this.state.gameConfig,
+          gameState: this.state.gameState,
+          currentPlayerIndex: this.state.currentPlayerIndex,
+          gameSeed: this.state.gameSeed,
+          lastHand: this.state.lastHand,
+          lastPlayerId: this.state.lastPlayerId,
+        },
+      }));
+
+      await this.saveState();
+      return;
+    }
+
+    // 新玩家加入
     const isNewGame = this.state.gameState === GameState.LOBBY || this.state.players.size === 0;
     const playerStatus = isNewGame ? PlayerStatus.PLAYING : PlayerStatus.WAITING;
 
@@ -365,7 +401,12 @@ export class Room extends DurableObject {
 
     this.state.players.set(playerId, player);
 
-    this.broadcast({ type: MessageType.PLAYER_JOIN, senderId: playerId, payload: { player } }, ws);
+    this.broadcast({
+      type: MessageType.PLAYER_JOIN,
+      senderId: playerId,
+      timestamp: Date.now(),
+      payload: { player },
+    }, ws);
 
     ws.send(JSON.stringify({
       type: MessageType.STATE_SYNC,

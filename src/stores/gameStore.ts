@@ -220,7 +220,16 @@ export const useGameStore = defineStore('game', () => {
   function registerMessageHandlers(): void {
     // 状态同步
     wsManager.onMessage(MessageType.STATE_SYNC, (message: GameMessage) => {
-      const { players: updatedPlayers, gameConfig, gameState: newGameState, currentPlayerIndex: newCurrentPlayerIndex, rpsReset } = message.payload;
+      const {
+        players: updatedPlayers,
+        gameConfig,
+        gameState: newGameState,
+        currentPlayerIndex: newCurrentPlayerIndex,
+        rpsReset,
+        gameSeed: newGameSeed,
+        lastHand: newLastHand,
+        lastPlayerId: newLastPlayerId,
+      } = message.payload;
 
       if (updatedPlayers) {
         players.value = updatedPlayers;
@@ -234,6 +243,28 @@ export const useGameStore = defineStore('game', () => {
       if (newCurrentPlayerIndex !== undefined) {
         currentPlayerIndex.value = newCurrentPlayerIndex;
       }
+
+      // 重连时恢复游戏状态
+      if (newGameSeed) {
+        gameSeed.value = newGameSeed;
+        // 重新计算手牌
+        const playerOrder = updatedPlayers?.map((p: Player) => p.id) || [];
+        const myIndex = playerOrder.indexOf(myPlayerId.value);
+        if (myIndex !== -1 && newGameState !== GameState.LOBBY) {
+          const hands = dealGame(newGameSeed, config.value.deckCount, playerOrder.length);
+          if (hands[myIndex]) {
+            myHand.value = sortCards(hands[myIndex]);
+          }
+        }
+      }
+
+      if (newLastHand !== undefined) {
+        lastHand.value = newLastHand;
+      }
+      if (newLastPlayerId !== undefined) {
+        lastPlayerId.value = newLastPlayerId;
+      }
+
       if (rpsReset) {
         rpsChoices.value.clear();
         myRPSChoice.value = null;
