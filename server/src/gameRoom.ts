@@ -433,8 +433,17 @@ export class Room extends DurableObject {
   }
 
   private async handleStartGame(msg: GameMessage) {
-    const { config } = msg.payload;
+    const { config } = msg.payload || {};
     if (config) this.state.gameConfig = config;
+
+    // 重置游戏状态
+    this.state.finishOrder = [];
+    this.state.lastHand = null;
+    this.state.lastPlayerId = null;
+    this.state.consecutivePasses = 0;
+    this.state.justFinishedPlayer = null;
+    this.state.rpsPlayers = [];
+    this.state.rpsChoices.clear();
 
     // 更新所有等待玩家为游戏中
     this.state.players.forEach(p => {
