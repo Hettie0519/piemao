@@ -198,7 +198,7 @@ export const useGameStore = defineStore('game', () => {
 
     wsManager.send({
       type: MessageType.CHAT_MESSAGE,
-      payload: { chatMessage },
+      payload: { message },
     });
   }
 
@@ -478,10 +478,16 @@ export const useGameStore = defineStore('game', () => {
 
     // 聊天消息
     wsManager.onMessage(MessageType.CHAT_MESSAGE, (message: GameMessage) => {
-      const { chatMessage } = message.payload;
-      if (chatMessage) {
-        chatMessages.value = chatMessages.value.filter(m => m.playerId !== chatMessage.playerId);
-        chatMessages.value.push(chatMessage);
+      const { playerId, playerName, message: msg } = message.payload;
+      if (playerId && msg) {
+        chatMessages.value = chatMessages.value.filter(m => m.playerId !== playerId);
+        chatMessages.value.push({
+          id: `${playerId}_${Date.now()}`,
+          playerId,
+          playerName,
+          message: msg,
+          timestamp: Date.now(),
+        });
       }
     });
 
