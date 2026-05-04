@@ -256,6 +256,8 @@ export class Room extends DurableObject {
   }
 
   async webSocketMessage(ws: WebSocket, message: string) {
+    await this.loadState(); // Durable Object 休眠唤醒后需要加载状态
+    this.restoreSessions(); // 恢复 sessions
     try {
       const msg: GameMessage = JSON.parse(message);
       await this.handleMessage(ws, msg);
@@ -265,6 +267,8 @@ export class Room extends DurableObject {
   }
 
   async webSocketClose(ws: WebSocket) {
+    await this.loadState(); // Durable Object 休眠唤醒后需要加载状态
+    this.restoreSessions(); // 恢复 sessions
     const playerId = this.sessions.get(ws);
     if (playerId) {
       const player = this.state.players.get(playerId);

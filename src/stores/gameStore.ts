@@ -479,7 +479,8 @@ export const useGameStore = defineStore('game', () => {
     // 聊天消息
     wsManager.onMessage(MessageType.CHAT_MESSAGE, (message: GameMessage) => {
       const { playerId, playerName, message: msg } = message.payload;
-      if (playerId && msg) {
+      // 忽略自己发的消息（本地已经添加过了）
+      if (playerId && msg && playerId !== myPlayerId.value) {
         chatMessages.value = chatMessages.value.filter(m => m.playerId !== playerId);
         chatMessages.value.push({
           id: `${playerId}_${Date.now()}`,
