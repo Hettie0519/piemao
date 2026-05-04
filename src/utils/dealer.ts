@@ -18,7 +18,7 @@ function seededRandom(seed: string): () => number {
     hash = ((hash << 5) - hash) + char;
     hash = hash & hash; // 转换为32位整数
   }
-  
+
   // 使用 Mulberry32 算法
   return function() {
     let t = hash += 0x6D2B79F5;
@@ -34,7 +34,7 @@ function seededRandom(seed: string): () => number {
 export function createDeck(deckCount: number = 1): Card[] {
   const deck: Card[] = [];
   let cardId = 0;
-  
+
   for (let d = 0; d < deckCount; d++) {
     for (const suit of ALL_SUITS) {
       for (const rank of ALL_RANKS) {
@@ -42,7 +42,7 @@ export function createDeck(deckCount: number = 1): Card[] {
       }
     }
   }
-  
+
   return deck;
 }
 
@@ -52,16 +52,12 @@ export function createDeck(deckCount: number = 1): Card[] {
 export function shuffleDeck(deck: Card[], seed: string): Card[] {
   const random = seededRandom(seed);
   const shuffled = [...deck];
-  
+
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
-    const temp = shuffled[i]!;
-    if (shuffled[j] !== undefined) {
-      shuffled[i] = shuffled[j]!;
-    }
-    shuffled[j] = temp;
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!]; // BUG #7 修复：统一使用解构赋值
   }
-  
+
   return shuffled;
 }
 
@@ -70,7 +66,7 @@ export function shuffleDeck(deck: Card[], seed: string): Card[] {
  */
 export function dealCards(deck: Card[], playerCount: number): Card[][] {
   const hands: Card[][] = Array.from({ length: playerCount }, () => []);
-  
+
   // 简单的轮询发牌
   deck.forEach((card, index) => {
     const playerIndex = index % playerCount;
@@ -79,7 +75,7 @@ export function dealCards(deck: Card[], playerCount: number): Card[][] {
       hand.push(card);
     }
   });
-  
+
   return hands;
 }
 
@@ -89,13 +85,13 @@ export function dealCards(deck: Card[], playerCount: number): Card[][] {
 export function dealGame(seed: string, deckCount: number, playerCount: number): Card[][] {
   // 1. 创建牌堆
   const deck = createDeck(deckCount);
-  
+
   // 2. 洗牌（使用种子）
   const shuffledDeck = shuffleDeck(deck, seed);
-  
+
   // 3. 发牌
   const hands = dealCards(shuffledDeck, playerCount);
-  
+
   return hands;
 }
 

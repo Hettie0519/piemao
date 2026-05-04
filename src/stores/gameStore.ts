@@ -46,6 +46,9 @@ export const useGameStore = defineStore('game', () => {
   // 游戏排名
   const gameRankings = ref<Array<{id: string, name: string, handCount: number}>>([]);
 
+  // 等待重连状态
+  const waitingForReconnect = ref<{playerId: string; playerName: string; timeout: number} | null>(null);
+
   // 计算属性
   const myPlayer = computed(() => {
     return players.value.find(p => p.id === myPlayerId.value);
@@ -73,6 +76,14 @@ export const useGameStore = defineStore('game', () => {
   async function initialize(playerName: string): Promise<void> {
     myPlayerName.value = playerName;
     myPlayerId.value = wsManager.getMyId();
+
+    // BUG #4 修复：重连后重新发送 JOIN_ROOM
+    wsManager.onOpen(() => {
+      wsManager.send({
+        type: MessageType.JOIN_ROOM,
+        payload: { playerName: myPlayerName.value },
+      });
+    });
 
     // 注册消息处理器
     registerMessageHandlers();
@@ -125,13 +136,10 @@ export const useGameStore = defineStore('game', () => {
       }
     }
 
-    // 从手牌中移除
-    myHand.value = myHand.value.filter(c => !cards.includes(c));
-
     wsManager.send({
       type: MessageType.PLAY_HAND,
       payload: {
-        cards: cards.map(c => c.id),
+        cards: cards.map((c: Card) => c.id),
         cardDetails: cards,
         handType: validation.type,
         isQiZi: beatResult.isQiZi || validation.isQiZi || false,
@@ -253,8 +261,13 @@ export const useGameStore = defineStore('game', () => {
         currentPlayerIndex.value = newCurrentPlayerIndex;
       }
 
+      // 服务器提供的手牌（权威来源）
+      if (message.payload.myHand) {
+        myHand.value = sortCards(message.payload.myHand);
+      }
+
       // 重连时恢复游戏状态
-      if (newGameSeed) {
+      if (newGameSeed && myHand.value.length === 0) {
         gameSeed.value = newGameSeed;
         // 重新计算手牌
         const playerOrder = updatedPlayers?.map((p: Player) => p.id) || [];
@@ -295,10 +308,19 @@ export const useGameStore = defineStore('game', () => {
 
     // 玩家离开
     wsManager.onMessage(MessageType.PLAYER_LEAVE, (message: GameMessage) => {
-      const { playerId } = message.payload;
-      const index = players.value.findIndex(p => p.id === playerId);
-      if (index !== -1) {
-        players.value.splice(index, 1);
+      const { playerId, disconnected } = message.payload;
+      const player = players.value.find(p => p.id === playerId);
+      if (player) {
+        // 游戏进行中断开：只标记状态，不移除（保持索引稳定）
+        if (disconnected && gameState.value !== GameState.LOBBY && gameState.value !== GameState.ENDED) {
+          player.isConnected = false;
+        } else {
+          // 大厅或游戏结束：移除玩家
+          const index = players.value.findIndex(p => p.id === playerId);
+          if (index !== -1) {
+            players.value.splice(index, 1);
+          }
+        }
       }
     });
 
@@ -323,17 +345,23 @@ export const useGameStore = defineStore('game', () => {
       lastPlayerId.value = null;
       consecutivePasses.value = 0;
       finishOrder.value = [];
+      waitingForReconnect.value = null;
 
       if (updatedPlayers) {
         players.value = updatedPlayers;
       }
 
-      // 计算自己的手牌
-      const myIndex = playerOrder.indexOf(myPlayerId.value);
-      if (myIndex !== -1) {
-        const hands = dealGame(seed, config.value.deckCount, playerOrder.length);
-        if (hands[myIndex]) {
-          myHand.value = sortCards(hands[myIndex]);
+      // 优先使用服务器提供的手牌
+      if (message.payload.myHand) {
+        myHand.value = sortCards(message.payload.myHand);
+      } else {
+        // 备用：本地计算手牌
+        const myIndex = playerOrder.indexOf(myPlayerId.value);
+        if (myIndex !== -1) {
+          const hands = dealGame(seed, config.value.deckCount, playerOrder.length);
+          if (hands[myIndex]) {
+            myHand.value = sortCards(hands[myIndex]);
+          }
         }
       }
 
@@ -356,7 +384,15 @@ export const useGameStore = defineStore('game', () => {
         player.handCount = handCount;
       }
 
+
       const cards = cardDetails || [];
+
+      // BUG #6 修复：自己出的牌，立即从 myHand 移除
+      if (playerId === myPlayerId.value && cards.length > 0) {
+        const cardIds = new Set(cards.map((c: Card) => c.id));
+        myHand.value = myHand.value.filter((c: Card) => !cardIds.has(c.id));
+      }
+
       const validation = validateHand(cards, config.value.minStraight, config.value.minSisterPair);
 
       consecutivePasses.value = 0;
@@ -379,6 +415,9 @@ export const useGameStore = defineStore('game', () => {
       if (player && player.handCount === 0 && !finishOrder.value.includes(playerId)) {
         finishOrder.value.push(playerId);
       }
+
+      // 清除等待重连状态
+      waitingForReconnect.value = null;
     });
 
     // 过牌
@@ -406,6 +445,9 @@ export const useGameStore = defineStore('game', () => {
           consecutivePasses.value = 0;
         }
       }
+
+      // 清除等待重连状态
+      waitingForReconnect.value = null;
     });
 
     // 游戏结束
@@ -413,6 +455,7 @@ export const useGameStore = defineStore('game', () => {
       const { rankings } = message.payload;
 
       gameState.value = GameState.ENDED;
+      waitingForReconnect.value = null;
 
       if (rankings) {
         gameRankings.value = rankings;
@@ -432,6 +475,20 @@ export const useGameStore = defineStore('game', () => {
       if (chatMessage) {
         chatMessages.value = chatMessages.value.filter(m => m.playerId !== chatMessage.playerId);
         chatMessages.value.push(chatMessage);
+      }
+    });
+
+    // 等待重连
+    wsManager.onMessage(MessageType.WAITING_FOR_RECONNECT, (message: GameMessage) => {
+      const { playerId, playerName, timeout } = message.payload;
+      waitingForReconnect.value = { playerId, playerName, timeout };
+    });
+
+    // 玩家重连成功
+    wsManager.onMessage(MessageType.PLAYER_RECONNECTED, (message: GameMessage) => {
+      const { playerId } = message.payload;
+      if (waitingForReconnect.value?.playerId === playerId) {
+        waitingForReconnect.value = null;
       }
     });
 
@@ -459,6 +516,7 @@ export const useGameStore = defineStore('game', () => {
     myRPSChoice,
     chatMessages,
     gameRankings,
+    waitingForReconnect,
 
     // 计算属性
     myPlayer,

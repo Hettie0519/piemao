@@ -22,6 +22,9 @@ export class WebSocketManager {
   private maxReconnectAttempts = 5;
   private messageHandlers = new Map<MessageType, (msg: GameMessage) => void>();
   private connectionHandlers: ConnectionHandlers = {};
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private missedPongs = 0;
+  private readonly maxMissedPongs = 3;
 
   constructor() {
     this.myId = this.loadOrGenerateId();
@@ -49,12 +52,19 @@ export class WebSocketManager {
         this.ws.onopen = () => {
           console.log('WebSocket connected');
           this.reconnectAttempts = 0;
+          this.missedPongs = 0;
+          this.startHeartbeat();
           this.connectionHandlers.onOpen?.();
           resolve(true);
         };
 
         this.ws.onmessage = (event) => {
           try {
+            // 处理 pong 响应
+            if (event.data === 'pong') {
+              this.missedPongs = 0;
+              return;
+            }
             const msg: GameMessage = JSON.parse(event.data);
             this.messageHandlers.get(msg.type)?.(msg);
           } catch (e) {
@@ -64,6 +74,7 @@ export class WebSocketManager {
 
         this.ws.onclose = () => {
           console.log('WebSocket closed');
+          this.stopHeartbeat();
           this.connectionHandlers.onClose?.();
           this.attemptReconnect();
         };
@@ -120,8 +131,31 @@ export class WebSocketManager {
   }
 
   disconnect(): void {
+    this.stopHeartbeat();
     this.ws?.close();
     this.ws = null;
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.missedPongs++;
+        if (this.missedPongs > this.maxMissedPongs) {
+          console.log('Missed too many pongs, reconnecting...');
+          this.ws.close();
+          return;
+        }
+        this.ws.send('ping');
+      }
+    }, 10000); // 每10秒发送一次心跳
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
   }
 
   private async attemptReconnect() {

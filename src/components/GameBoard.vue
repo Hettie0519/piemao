@@ -23,14 +23,44 @@ const myPlayerOrder = computed(() => {
   return gameStore.players.findIndex(p => p.id === gameStore.myPlayerId) + 1;
 });
 
-onMounted(() => {
-  // 空实现，不需要检测屏幕方向
-});
+// 等待重连倒计时
+const reconnectCountdown = ref(0);
+let reconnectTimer: ReturnType<typeof setInterval> | null = null;
+
+// 监听等待重连状态
+watch(() => gameStore.waitingForReconnect, (newVal) => {
+  if (reconnectTimer) {
+    clearInterval(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  if (newVal) {
+    reconnectCountdown.value = Math.ceil(newVal.timeout / 1000);
+    reconnectTimer = setInterval(() => {
+      if (reconnectCountdown.value > 0) {
+        reconnectCountdown.value--;
+      } else {
+        if (reconnectTimer) {
+          clearInterval(reconnectTimer);
+          reconnectTimer = null;
+        }
+      }
+    }, 1000);
+  }
+}, { immediate: true });
 
 onUnmounted(() => {
+  if (reconnectTimer) {
+    clearInterval(reconnectTimer);
+    reconnectTimer = null;
+  }
   // 清除所有聊天气泡计时器
   chatBubbleTimers.value.forEach(timer => clearTimeout(timer));
   chatBubbleTimers.value.clear();
+});
+
+onMounted(() => {
+  // 空实现，不需要检测屏幕方向
 });
 
 const sortedHand = computed(() => sortCards(gameStore.myHand));
@@ -499,15 +529,23 @@ function isLineEnd(index: number) {
             v-for="(player, index) in leftPlayers"
             :key="player!.id"
             class="player-left"
-            :class="{ 'current-turn': getLeftPlayerIndex(index) === gameStore.currentPlayerIndex }"
+            :class="{
+              'current-turn': getLeftPlayerIndex(index) === gameStore.currentPlayerIndex,
+              'disconnected': !player!.isConnected
+            }"
             :data-player-id="player!.id"
           >
             <div class="player-info">
               <span v-if="player!.isHost" class="crown">👑</span>
               <span class="player-number">{{ getLeftPlayerActualIndex(index) + 1 }}</span>
               <span class="player-name">{{ player!.name }}</span>
-              <span v-if="player!.status === 'waiting'" class="waiting-badge">等待中</span>
+              <span v-if="!player!.isConnected" class="disconnected-badge">已断开</span>
+              <span v-else-if="player!.status === 'waiting'" class="waiting-badge">等待中</span>
               <span class="player-hand-count">{{ player!.handCount }} 张</span>
+            </div>
+            <!-- 断开倒计时提示 -->
+            <div v-if="!player!.isConnected && gameStore.waitingForReconnect?.playerId === player!.id" class="reconnect-countdown">
+              {{ reconnectCountdown }}秒后自动过牌
             </div>
           </div>
         </div>
@@ -532,7 +570,12 @@ function isLineEnd(index: number) {
               </div>
             </div>
             <div v-else class="waiting-text">
-              {{ gameStore.isMyTurn ? '请出牌' : `等待 ${gameStore.currentPlayer?.name} 出牌` }}
+              <template v-if="gameStore.waitingForReconnect">
+                等待 {{ gameStore.waitingForReconnect.playerName }} 重连 ({{ reconnectCountdown }}秒)
+              </template>
+              <template v-else>
+                {{ gameStore.isMyTurn ? '请出牌' : `等待 ${gameStore.currentPlayer?.name} 出牌` }}
+              </template>
             </div>
           </div>
         </div>
@@ -544,15 +587,23 @@ function isLineEnd(index: number) {
             v-for="(player, index) in rightPlayers"
             :key="player!.id"
             class="player-right"
-            :class="{ 'current-turn': getRightPlayerIndex(index) === gameStore.currentPlayerIndex }"
+            :class="{
+              'current-turn': getRightPlayerIndex(index) === gameStore.currentPlayerIndex,
+              'disconnected': !player!.isConnected
+            }"
             :data-player-id="player!.id"
           >
             <div class="player-info">
               <span v-if="player!.isHost" class="crown">👑</span>
               <span class="player-number">{{ getRightPlayerActualIndex(index) + 1 }}</span>
               <span class="player-name">{{ player!.name }}</span>
-              <span v-if="player!.status === 'waiting'" class="waiting-badge">等待中</span>
+              <span v-if="!player!.isConnected" class="disconnected-badge">已断开</span>
+              <span v-else-if="player!.status === 'waiting'" class="waiting-badge">等待中</span>
               <span class="player-hand-count">{{ player!.handCount }} 张</span>
+            </div>
+            <!-- 断开倒计时提示 -->
+            <div v-if="!player!.isConnected && gameStore.waitingForReconnect?.playerId === player!.id" class="reconnect-countdown">
+              {{ reconnectCountdown }}秒后自动过牌
             </div>
           </div>
         </div>
@@ -818,6 +869,40 @@ function isLineEnd(index: number) {
   border-color: #ffd700;
   background: rgba(255, 215, 0, 0.1);
   box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+/* 断开状态 */
+.disconnected .player-info {
+  border-color: #ff4444;
+  background: rgba(255, 68, 68, 0.1);
+  opacity: 0.8;
+}
+
+.disconnected-badge {
+  background: #ff4444;
+  color: #fff;
+  padding: 0.3vh 0.8vw;
+  border-radius: 0.5vh;
+  font-size: 1.2vmin;
+  font-weight: 600;
+  margin-left: 0.5vw;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.reconnect-countdown {
+  background: rgba(255, 68, 68, 0.9);
+  color: #fff;
+  padding: 0.5vh 1vw;
+  border-radius: 0.5vh;
+  font-size: 1.2vmin;
+  font-weight: 600;
+  margin-top: 0.5vh;
+  text-align: center;
 }
 
 /* 中央出牌区 */

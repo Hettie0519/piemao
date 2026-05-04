@@ -82,6 +82,8 @@ export enum MessageType {
   STATE_SYNC = 'state_sync',
   ERROR = 'error',
   RETURN_TO_LOBBY = 'return_to_lobby',
+  WAITING_FOR_RECONNECT = 'waiting_for_reconnect',
+  PLAYER_RECONNECTED = 'player_reconnected',
 }
 
 // 游戏消息

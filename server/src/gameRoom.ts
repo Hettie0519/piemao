@@ -26,7 +26,13 @@ interface RoomState {
   rpsChoices: Map<string, RockPaperScissorsChoice>;
   finishOrder: string[];
   justFinishedPlayer: string | null;
+  waitingForReconnect: string | null;
+  playerHands: Map<string, Card[]>; // 保存每个玩家的实际手牌
+  playerOrder: string[]; // 玩家顺序
 }
+
+// 等待重连的超时时间（毫秒）
+const RECONNECT_TIMEOUT = 15000;
 
 // 创建一张牌
 function createCard(suit: Suit, rank: Rank, id: string): Card {
@@ -99,26 +105,18 @@ function findRedHeart3Holders(hands: Card[][]): number[] {
 }
 
 // 牌型验证
-function validateHand(cards: Card[], minStraight: number, minSisterPair: number): { valid: boolean; type?: HandType; isQiZi?: boolean; error?: string } {
+function validateHand(cards: Card[], minStraight: number, minSisterPair: number): { valid: boolean; type?: HandType; error?: string } {
   if (cards.length === 0) return { valid: false, error: '请选择牌' };
   if (cards.length === 1) return { valid: true, type: HandType.SINGLE };
 
   const firstRank = cards[0]!.rank;
   const allSameRank = cards.every(c => c.rank === firstRank);
 
-  // 对子
   if (cards.length === 2 && allSameRank) return { valid: true, type: HandType.PAIR };
-
-  // 炸弹 (3张)
   if (cards.length === 3 && allSameRank) return { valid: true, type: HandType.BOMB };
-
-  // 轰雷 (4张)
   if (cards.length === 4 && allSameRank) return { valid: true, type: HandType.THUNDER };
-
-  // 多张 (5+)
   if (cards.length >= 5 && allSameRank) return { valid: true, type: HandType.MULTI };
 
-  // 顺子
   if (cards.length >= minStraight && !cards.some(c => c.rank === '2')) {
     const sorted = [...cards].sort((a, b) => a.value - b.value);
     let isStraight = true;
@@ -131,7 +129,6 @@ function validateHand(cards: Card[], minStraight: number, minSisterPair: number)
     if (isStraight) return { valid: true, type: HandType.STRAIGHT };
   }
 
-  // 姐妹对
   if (cards.length >= minSisterPair * 2 && cards.length % 2 === 0 && !cards.some(c => c.rank === '2')) {
     const rankGroups = new Map<Rank, Card[]>();
     cards.forEach(c => {
@@ -155,63 +152,6 @@ function validateHand(cards: Card[], minStraight: number, minSisterPair: number)
   return { valid: false, error: '无效的牌型' };
 }
 
-// 检查起子
-function isQiZi(cards: Card[], targetType: HandType, targetCount: number): boolean {
-  if (!cards.every(c => c.rank === '4')) return false;
-  const count = cards.length;
-  if (targetType === HandType.BOMB && count === 2) return true;
-  if (targetType === HandType.THUNDER && count === 3) return true;
-  if (targetType === HandType.MULTI && count >= 4 && count === targetCount - 1) return true;
-  return false;
-}
-
-// 比较牌型
-function canBeatHand(cards: Card[], lastHand: Hand | null, minStraight: number, minSisterPair: number): { canBeat: boolean; isQiZi: boolean } {
-  const validation = validateHand(cards, minStraight, minSisterPair);
-  if (!validation.valid) return { canBeat: false, isQiZi: false };
-
-  if (!lastHand) return { canBeat: true, isQiZi: false };
-
-  // 检查起子
-  if (lastHand && !lastHand.isQiZi) {
-    if (isQiZi(cards, lastHand.type, lastHand.count)) {
-      return { canBeat: true, isQiZi: true };
-    }
-  }
-
-  const hand: Hand = {
-    type: validation.type!,
-    cards,
-    count: cards.length,
-    rank: cards[0]!.rank,
-    isQiZi: false,
-  };
-
-  // 同类型比较
-  if (hand.type === lastHand.type) {
-    if (hand.count !== lastHand.count) return { canBeat: false, isQiZi: false };
-    return { canBeat: RANK_VALUES[hand.rank] > RANK_VALUES[lastHand.rank], isQiZi: false };
-  }
-
-  // 特殊牌型层级
-  const specialRank: Record<HandType, number> = {
-    [HandType.BOMB]: 1, [HandType.THUNDER]: 2, [HandType.MULTI]: 3,
-    [HandType.SINGLE]: 0, [HandType.PAIR]: 0, [HandType.STRAIGHT]: 0, [HandType.SISTER_PAIR]: 0,
-  };
-
-  const isHand1Special = specialRank[hand.type] > 0;
-  const isHand2Special = specialRank[lastHand.type] > 0;
-
-  if (isHand1Special && isHand2Special) {
-    if (specialRank[hand.type] > specialRank[lastHand.type]) return { canBeat: true, isQiZi: false };
-    return { canBeat: false, isQiZi: false };
-  }
-
-  if (isHand1Special && !isHand2Special) return { canBeat: true, isQiZi: false };
-
-  return { canBeat: false, isQiZi: false };
-}
-
 // 石头剪子布比较
 function compareRPS(c1: RockPaperScissorsChoice, c2: RockPaperScissorsChoice): number {
   if (c1 === c2) return 0;
@@ -229,7 +169,24 @@ export class Room extends DurableObject {
     super(ctx, env);
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     this.state = this.createInitialState();
-    this.loadState();
+    this.restoreSessions(); // BUG #3 修复：恢复 sessions
+  }
+
+  // BUG #3 修复：从 hibernated WebSocket 恢复 sessions
+  private restoreSessions() {
+    for (const ws of this.ctx.getWebSockets()) {
+      const meta = ws.deserializeAttachment() as { playerId: string } | null;
+      if (meta?.playerId && !this.sessions.has(ws)) {
+        this.sessions.set(ws, meta.playerId);
+      }
+    }
+  }
+
+  async alarm() {
+    await this.loadState();
+    if (this.state.waitingForReconnect) {
+      await this.autoPassDisconnectedPlayer();
+    }
   }
 
   private createInitialState(): RoomState {
@@ -246,6 +203,9 @@ export class Room extends DurableObject {
       rpsChoices: new Map(),
       finishOrder: [],
       justFinishedPlayer: null,
+      waitingForReconnect: null,
+      playerHands: new Map(),
+      playerOrder: [],
     };
   }
 
@@ -256,6 +216,8 @@ export class Room extends DurableObject {
         ...stored,
         players: new Map(Object.entries(stored.players as unknown as Record<string, Player>)),
         rpsChoices: new Map(Object.entries(stored.rpsChoices as unknown as Record<string, RockPaperScissorsChoice>)),
+        playerHands: new Map(Object.entries(stored.playerHands as unknown as Record<string, Card[]>) || []),
+        playerOrder: stored.playerOrder || [],
       };
     }
   }
@@ -265,6 +227,7 @@ export class Room extends DurableObject {
       ...this.state,
       players: Object.fromEntries(this.state.players),
       rpsChoices: Object.fromEntries(this.state.rpsChoices),
+      playerHands: Object.fromEntries(this.state.playerHands),
     };
     await this.ctx.storage.put('gameState', toStore);
   }
@@ -272,7 +235,6 @@ export class Room extends DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
-    // 处理内部重置请求
     if (url.pathname === '/reset' && request.method === 'POST') {
       this.state = this.createInitialState();
       await this.ctx.storage.deleteAll();
@@ -284,6 +246,9 @@ export class Room extends DurableObject {
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('Expected WebSocket', { status: 426 });
     }
+
+    await this.loadState();
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
@@ -304,9 +269,9 @@ export class Room extends DurableObject {
     if (playerId) {
       const player = this.state.players.get(playerId);
       if (player) {
-        // 大厅或游戏结束时，直接移除玩家
         if (this.state.gameState === GameState.LOBBY || this.state.gameState === GameState.ENDED) {
           this.state.players.delete(playerId);
+          this.state.playerHands.delete(playerId);
           this.broadcast({
             type: MessageType.PLAYER_LEAVE,
             senderId: playerId,
@@ -314,7 +279,6 @@ export class Room extends DurableObject {
             payload: { playerId, disconnected: false },
           });
         } else {
-          // 游戏进行中，标记为断开（支持重连）
           player.isConnected = false;
           this.broadcast({
             type: MessageType.PLAYER_LEAVE,
@@ -322,10 +286,84 @@ export class Room extends DurableObject {
             timestamp: Date.now(),
             payload: { playerId, disconnected: true },
           });
+          await this.checkDisconnectedPlayerTurn();
         }
       }
       this.sessions.delete(ws);
       await this.saveState();
+    }
+  }
+
+  private async checkDisconnectedPlayerTurn() {
+    if (this.state.gameState !== GameState.PLAYING) return;
+    if (this.state.waitingForReconnect) return;
+
+    const currentPlayerId = this.state.playerOrder[this.state.currentPlayerIndex];
+    const currentPlayer = currentPlayerId ? this.state.players.get(currentPlayerId) : null;
+
+    if (currentPlayer && !currentPlayer.isConnected && currentPlayer.handCount > 0) {
+      this.state.waitingForReconnect = currentPlayer.id;
+
+      this.broadcast({
+        type: MessageType.WAITING_FOR_RECONNECT,
+        payload: {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          timeout: RECONNECT_TIMEOUT
+        },
+      });
+
+      this.ctx.storage.setAlarm(Date.now() + RECONNECT_TIMEOUT);
+      await this.saveState(); // BUG #1 修复：添加 await
+    }
+  }
+
+  private async autoPassDisconnectedPlayer() {
+    if (!this.state.waitingForReconnect) return;
+
+    const playerId = this.state.waitingForReconnect;
+    this.state.waitingForReconnect = null;
+
+    const currentId = this.state.playerOrder[this.state.currentPlayerIndex];
+    if (currentId !== playerId) return;
+
+    this.state.consecutivePasses++;
+
+    let nextIndex = (this.state.currentPlayerIndex + 1) % this.state.playerOrder.length;
+    const players = this.state.playerOrder.map(id => this.state.players.get(id)).filter(Boolean) as Player[];
+    while (players[nextIndex]?.handCount === 0) {
+      nextIndex = (nextIndex + 1) % this.state.playerOrder.length;
+    }
+    this.state.currentPlayerIndex = nextIndex;
+
+    this.checkPassLogic(players);
+
+    this.broadcast({
+      type: MessageType.PASS,
+      senderId: playerId,
+      timestamp: Date.now(),
+      payload: { nextPlayerIndex: nextIndex, autoPassed: true },
+    });
+
+    await this.saveState();
+    await this.checkDisconnectedPlayerTurn();
+  }
+
+  private checkPassLogic(players: Player[]) {
+    const playersWithCards = players.filter(p => p.handCount > 0);
+    const requiredPasses = this.state.justFinishedPlayer ? playersWithCards.length : playersWithCards.length - 1;
+
+    if (this.state.consecutivePasses >= requiredPasses) {
+      this.state.lastHand = null;
+      this.state.consecutivePasses = 0;
+      this.state.justFinishedPlayer = null;
+    }
+
+    const nextPlayerId = this.state.playerOrder[this.state.currentPlayerIndex];
+    if (this.state.lastPlayerId && nextPlayerId === this.state.lastPlayerId) {
+      this.state.lastHand = null;
+      this.state.lastPlayerId = null;
+      this.state.consecutivePasses = 0;
     }
   }
 
@@ -355,6 +393,9 @@ export class Room extends DurableObject {
       case MessageType.RETURN_TO_LOBBY:
         await this.handleReturnToLobby();
         break;
+      case MessageType.CHAT_MESSAGE:
+        await this.handleChatMessage(msg);
+        break;
     }
   }
 
@@ -363,8 +404,8 @@ export class Room extends DurableObject {
     const playerId = msg.senderId;
 
     this.sessions.set(ws, playerId);
+    ws.serializeAttachment({ playerId }); // BUG #3 修复：持久化 playerId
 
-    // 游戏结束时，重置为大厅状态
     if (this.state.gameState === GameState.ENDED) {
       this.state.gameState = GameState.LOBBY;
       this.state.finishOrder = [];
@@ -372,23 +413,31 @@ export class Room extends DurableObject {
       this.state.lastPlayerId = null;
       this.state.consecutivePasses = 0;
       this.state.justFinishedPlayer = null;
-      // 重置所有玩家状态
+      this.state.waitingForReconnect = null;
+      this.state.playerHands.clear();
+      this.state.playerOrder = [];
       this.state.players.forEach(p => {
         p.status = PlayerStatus.PLAYING;
         p.handCount = 0;
       });
     }
 
-    // 检查是否是重连的玩家
     const existingPlayer = this.state.players.get(playerId);
     if (existingPlayer) {
-      // 重连：恢复连接状态
       existingPlayer.isConnected = true;
       if (playerName && playerName.trim()) {
         existingPlayer.name = playerName;
       }
 
-      // 广播玩家重连
+      if (this.state.waitingForReconnect === playerId) {
+        this.state.waitingForReconnect = null;
+        this.ctx.storage.deleteAlarm();
+        this.broadcast({
+          type: MessageType.PLAYER_RECONNECTED,
+          payload: { playerId },
+        });
+      }
+
       this.broadcast({
         type: MessageType.PLAYER_JOIN,
         senderId: playerId,
@@ -396,7 +445,8 @@ export class Room extends DurableObject {
         payload: { player: existingPlayer, reconnected: true },
       }, ws);
 
-      // 发送当前状态给重连玩家
+      // 发送状态同步，包括玩家手牌
+      const myHand = this.state.playerHands.get(playerId) || [];
       ws.send(JSON.stringify({
         type: MessageType.STATE_SYNC,
         payload: {
@@ -407,6 +457,8 @@ export class Room extends DurableObject {
           gameSeed: this.state.gameSeed,
           lastHand: this.state.lastHand,
           lastPlayerId: this.state.lastPlayerId,
+          myHand: myHand,
+          playerOrder: this.state.playerOrder,
         },
       }));
 
@@ -414,7 +466,6 @@ export class Room extends DurableObject {
       return;
     }
 
-    // 新玩家加入
     const isNewGame = this.state.gameState === GameState.LOBBY || this.state.players.size === 0;
     const playerStatus = isNewGame ? PlayerStatus.PLAYING : PlayerStatus.WAITING;
 
@@ -455,13 +506,12 @@ export class Room extends DurableObject {
     const player = this.state.players.get(playerId);
     if (player && playerName) {
       player.name = playerName;
-      this.broadcast({ type: MessageType.UPDATE_PLAYER_NAME, senderId: playerId, payload: { playerId, playerName } });
+      this.broadcast({ type: MessageType.UPDATE_PLAYER_NAME, senderId: playerId, timestamp: Date.now(), payload: { playerId, playerName } });
       await this.saveState();
     }
   }
 
   private async handleReturnToLobby() {
-    // 重置为大厅状态
     this.state.gameState = GameState.LOBBY;
     this.state.finishOrder = [];
     this.state.lastHand = null;
@@ -469,7 +519,10 @@ export class Room extends DurableObject {
     this.state.consecutivePasses = 0;
     this.state.justFinishedPlayer = null;
     this.state.gameSeed = '';
-    // 重置所有玩家状态
+    this.state.waitingForReconnect = null;
+    this.state.playerHands.clear();
+    this.state.playerOrder = [];
+    this.ctx.storage.deleteAlarm();
     this.state.players.forEach(p => {
       p.status = PlayerStatus.PLAYING;
       p.handCount = 0;
@@ -490,7 +543,6 @@ export class Room extends DurableObject {
     const { config } = msg.payload || {};
     if (config) this.state.gameConfig = config;
 
-    // 重置游戏状态
     this.state.finishOrder = [];
     this.state.lastHand = null;
     this.state.lastPlayerId = null;
@@ -498,8 +550,10 @@ export class Room extends DurableObject {
     this.state.justFinishedPlayer = null;
     this.state.rpsPlayers = [];
     this.state.rpsChoices.clear();
+    this.state.waitingForReconnect = null;
+    this.state.playerHands.clear();
+    this.ctx.storage.deleteAlarm();
 
-    // 更新所有等待玩家为游戏中
     this.state.players.forEach(p => {
       if (p.status === PlayerStatus.WAITING) p.status = PlayerStatus.PLAYING;
     });
@@ -507,27 +561,21 @@ export class Room extends DurableObject {
     const players = Array.from(this.state.players.values()).filter(p => p.status === PlayerStatus.PLAYING && p.isConnected);
     const playerCount = players.length;
 
-    if (playerCount < 2) {
-      // 玩家不足，无法开始
-      return;
-    }
+    if (playerCount < 2) return;
 
     this.state.gameSeed = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
     this.state.gameState = GameState.DEALING;
+    this.state.playerOrder = players.map(p => p.id);
 
     const hands = dealGame(this.state.gameSeed, this.state.gameConfig.deckCount, playerCount);
     const redHeart3Holders = findRedHeart3Holders(hands);
 
-    // 更新手牌数量
+    // 保存每个玩家的手牌
     players.forEach((player, index) => {
-      player.handCount = hands[index]?.length || 0;
+      const hand = hands[index] || [];
+      player.handCount = hand.length;
+      this.state.playerHands.set(player.id, hand);
     });
-
-    this.state.finishOrder = [];
-    this.state.lastHand = null;
-    this.state.lastPlayerId = null;
-    this.state.consecutivePasses = 0;
-    this.state.justFinishedPlayer = null;
 
     if (redHeart3Holders.length === 1) {
       this.state.currentPlayerIndex = redHeart3Holders[0]!;
@@ -541,18 +589,26 @@ export class Room extends DurableObject {
       this.state.gameState = GameState.PLAYING;
     }
 
-    this.broadcast({
-      type: MessageType.GAME_START,
-      payload: {
-        seed: this.state.gameSeed,
-        config: this.state.gameConfig,
-        playerOrder: players.map(p => p.id),
-        currentPlayerIndex: this.state.currentPlayerIndex,
-        players: players,
-        gameState: this.state.gameState,
-        rpsPlayers: this.state.rpsPlayers,
-      },
-    });
+    // 分别发送给每个玩家（包含其手牌）
+    for (const player of players) {
+      const myHand = this.state.playerHands.get(player.id) || [];
+      const ws = Array.from(this.sessions.entries()).find(([ws, id]) => id === player.id)?.[0];
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: MessageType.GAME_START,
+          payload: {
+            seed: this.state.gameSeed,
+            config: this.state.gameConfig,
+            playerOrder: this.state.playerOrder,
+            currentPlayerIndex: this.state.currentPlayerIndex,
+            players: players,
+            gameState: this.state.gameState,
+            rpsPlayers: this.state.rpsPlayers,
+            myHand: myHand,
+          },
+        }));
+      }
+    }
 
     await this.saveState();
   }
@@ -563,8 +619,14 @@ export class Room extends DurableObject {
     const player = this.state.players.get(playerId);
     if (!player) return;
 
+    // 从玩家手牌中移除
+    const myHand = this.state.playerHands.get(playerId) || [];
+    const cardIdSet = new Set(cardIds);
+    const newHand = myHand.filter(c => !cardIdSet.has(c.id));
+    this.state.playerHands.set(playerId, newHand);
+
     const cards = cardDetails || [];
-    player.handCount = Math.max(0, player.handCount - cardIds.length);
+    player.handCount = newHand.length;
 
     const validation = validateHand(cards, this.state.gameConfig.minStraight, this.state.gameConfig.minSisterPair);
 
@@ -578,35 +640,16 @@ export class Room extends DurableObject {
     this.state.lastPlayerId = playerId;
     this.state.consecutivePasses = 0;
 
-    // 计算下一个玩家
-    const players = Array.from(this.state.players.values()).filter(p => p.status === PlayerStatus.PLAYING);
-    let nextIndex = (this.state.currentPlayerIndex + 1) % players.length;
-    while (players[nextIndex]?.handCount === 0) {
-      nextIndex = (nextIndex + 1) % players.length;
-    }
-    this.state.currentPlayerIndex = nextIndex;
+    const players = this.state.playerOrder.map(id => this.state.players.get(id)).filter(Boolean) as Player[];
 
-    this.broadcast({
-      type: MessageType.PLAY_HAND,
-      senderId: playerId,
-      payload: {
-        cards: cardIds,
-        cardDetails: cards,
-        handType: validation.type,
-        isQiZi: msg.payload.isQiZi,
-        nextPlayerIndex: nextIndex,
-        handCount: player.handCount,
-      },
-    });
-
-    // 检查玩家是否出完牌
+    // BUG #2 修复：先检查游戏是否结束，再计算 nextIndex
     if (player.handCount === 0) {
       this.state.finishOrder.push(playerId);
       this.state.justFinishedPlayer = playerId;
 
-      // 检查游戏是否结束
       const playersWithCards = players.filter(p => p.handCount > 0);
       if (playersWithCards.length <= 1) {
+        // 游戏结束，直接广播结果
         this.state.gameState = GameState.ENDED;
         const rankings = players.sort((a, b) => {
           const idxA = this.state.finishOrder.indexOf(a.id);
@@ -617,51 +660,97 @@ export class Room extends DurableObject {
           return a.handCount - b.handCount;
         }).map(p => ({ id: p.id, name: p.name, handCount: p.handCount }));
 
+        // 广播出牌消息
+        this.broadcast({
+          type: MessageType.PLAY_HAND,
+          senderId: playerId,
+          timestamp: Date.now(),
+          payload: {
+            cards: cardIds,
+            cardDetails: cards,
+            handType: validation.type,
+            isQiZi: msg.payload.isQiZi,
+            nextPlayerIndex: this.state.currentPlayerIndex,
+            handCount: player.handCount,
+          },
+        });
+
+        // 发送更新后的手牌
+        const ws = Array.from(this.sessions.entries()).find(([ws, id]) => id === playerId)?.[0];
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: MessageType.STATE_SYNC,
+            payload: { myHand: newHand },
+          }));
+        }
+
         this.broadcast({
           type: MessageType.GAME_END,
           payload: { winnerId: playerId, winnerName: player.name, rankings },
         });
+
+        await this.saveState();
+        return; // 直接返回，避免计算 nextIndex
       }
     }
 
+    // 计算下一个玩家
+    let nextIndex = (this.state.currentPlayerIndex + 1) % this.state.playerOrder.length;
+    while (players[nextIndex]?.handCount === 0) {
+      nextIndex = (nextIndex + 1) % this.state.playerOrder.length;
+    }
+    this.state.currentPlayerIndex = nextIndex;
+
+    // 广播出牌消息
+    this.broadcast({
+      type: MessageType.PLAY_HAND,
+      senderId: playerId,
+      timestamp: Date.now(),
+      payload: {
+        cards: cardIds,
+        cardDetails: cards,
+        handType: validation.type,
+        isQiZi: msg.payload.isQiZi,
+        nextPlayerIndex: nextIndex,
+        handCount: player.handCount,
+      },
+    });
+
+    // 发送更新后的手牌给出牌玩家
+    const ws = Array.from(this.sessions.entries()).find(([ws, id]) => id === playerId)?.[0];
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: MessageType.STATE_SYNC,
+        payload: { myHand: newHand },
+      }));
+    }
+
     await this.saveState();
+    await this.checkDisconnectedPlayerTurn();
   }
 
   private async handlePass(msg: GameMessage) {
     const playerId = msg.senderId;
     this.state.consecutivePasses++;
 
-    const players = Array.from(this.state.players.values()).filter(p => p.status === PlayerStatus.PLAYING);
-    let nextIndex = (this.state.currentPlayerIndex + 1) % players.length;
+    let nextIndex = (this.state.currentPlayerIndex + 1) % this.state.playerOrder.length;
+    const players = this.state.playerOrder.map(id => this.state.players.get(id)).filter(Boolean) as Player[];
     while (players[nextIndex]?.handCount === 0) {
-      nextIndex = (nextIndex + 1) % players.length;
+      nextIndex = (nextIndex + 1) % this.state.playerOrder.length;
     }
     this.state.currentPlayerIndex = nextIndex;
 
-    // 检查是否所有人都过牌
-    const playersWithCards = players.filter(p => p.handCount > 0);
-    const requiredPasses = this.state.justFinishedPlayer ? playersWithCards.length : playersWithCards.length - 1;
-
-    if (this.state.consecutivePasses >= requiredPasses) {
-      this.state.lastHand = null;
-      this.state.consecutivePasses = 0;
-      this.state.justFinishedPlayer = null;
-    }
-
-    // 如果轮回到上一个出牌的人
-    if (this.state.lastPlayerId && players[nextIndex]?.id === this.state.lastPlayerId) {
-      this.state.lastHand = null;
-      this.state.lastPlayerId = null;
-      this.state.consecutivePasses = 0;
-    }
+    this.checkPassLogic(players);
 
     this.broadcast({
       type: MessageType.PASS,
       senderId: playerId,
+      timestamp: Date.now(),
       payload: { nextPlayerIndex: nextIndex },
     });
 
     await this.saveState();
+    await this.checkDisconnectedPlayerTurn();
   }
 
   private async handleRPSChoice(msg: GameMessage) {
@@ -669,19 +758,17 @@ export class Room extends DurableObject {
     const playerId = msg.senderId;
     this.state.rpsChoices.set(playerId, choice);
 
-    // 检查是否所有人都已选择
     const allChosen = this.state.rpsPlayers.every(idx => {
-      const player = Array.from(this.state.players.values())[idx];
+      const player = this.state.players.get(this.state.playerOrder[idx] || '');
       return player && this.state.rpsChoices.has(player.id);
     });
 
     if (allChosen) {
       const choices = this.state.rpsPlayers.map(idx => {
-        const player = Array.from(this.state.players.values())[idx]!;
+        const player = this.state.players.get(this.state.playerOrder[idx] || '')!;
         return { playerId: player.id, choice: this.state.rpsChoices.get(player.id)! };
       });
 
-      // 检查平局
       const firstChoice = choices[0]?.choice;
       const allSame = choices.every(c => c.choice === firstChoice);
       if (allSame) {
@@ -690,10 +777,9 @@ export class Room extends DurableObject {
         return;
       }
 
-      // 找出胜者
       const winner = choices.reduce((prev, curr) => compareRPS(curr.choice, prev.choice) > 0 ? curr : prev);
       const winnerIdx = this.state.rpsPlayers.find(idx => {
-        const player = Array.from(this.state.players.values())[idx];
+        const player = this.state.players.get(this.state.playerOrder[idx] || '');
         return player?.id === winner.playerId;
       });
 
@@ -716,11 +802,39 @@ export class Room extends DurableObject {
     await this.saveState();
   }
 
+  // BUG #5 修复：处理聊天消息
+  private async handleChatMessage(msg: GameMessage) {
+    const player = this.state.players.get(msg.senderId);
+    if (!player) return;
+
+    this.broadcast({
+      type: MessageType.CHAT_MESSAGE,
+      senderId: msg.senderId,
+      timestamp: Date.now(),
+      payload: {
+        playerId: msg.senderId,
+        playerName: player.name,
+        message: msg.payload.message,
+      },
+    });
+  }
+
   private broadcast(message: GameMessage, excludeWs?: WebSocket) {
-    const payload = JSON.stringify({ ...message, timestamp: Date.now() });
-    for (const [ws] of this.sessions) {
+    const payload = JSON.stringify({
+      ...message,
+      timestamp: message.timestamp || Date.now(),
+      senderId: message.senderId || '',
+    });
+
+    const webSockets = this.ctx.getWebSockets();
+
+    for (const ws of webSockets) {
       if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
-        ws.send(payload);
+        try {
+          ws.send(payload);
+        } catch (e) {
+          console.error('Failed to send message:', e);
+        }
       }
     }
   }

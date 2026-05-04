@@ -99,6 +99,10 @@ export enum MessageType {
   // 状态同步
   STATE_SYNC = 'state_sync',
   ERROR = 'error',
+
+  // 重连等待
+  WAITING_FOR_RECONNECT = 'waiting_for_reconnect',
+  PLAYER_RECONNECTED = 'player_reconnected',
 }
 
 // 游戏消息
