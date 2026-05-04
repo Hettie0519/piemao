@@ -301,8 +301,15 @@ export const useGameStore = defineStore('game', () => {
     // 玩家加入
     wsManager.onMessage(MessageType.PLAYER_JOIN, (message: GameMessage) => {
       const { player } = message.payload;
-      if (player && !players.value.find(p => p.id === player.id)) {
-        players.value.push(player);
+      if (player) {
+        const existingIndex = players.value.findIndex(p => p.id === player.id);
+        if (existingIndex !== -1) {
+          // 玩家已存在（重连），更新状态
+          players.value[existingIndex] = player;
+        } else {
+          // 新玩家加入
+          players.value.push(player);
+        }
       }
     });
 
